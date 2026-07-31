@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import {
   ArrowRight,
   AtSign,
-  GitFork,
   LoaderCircle,
   LockKeyhole,
   UserRound
@@ -173,7 +172,7 @@ export function AuthForm() {
           startTransition(async () => {
             const supabase = createClient();
             const { error } = await supabase.auth.signInWithOAuth({
-              provider: "github",
+              provider: "google",
               options: {
                 redirectTo: `${window.location.origin}/auth/callback`
               }
@@ -185,8 +184,10 @@ export function AuthForm() {
           });
         }}
       >
-        <GitFork size={19} />
-        GitHub
+        <span className="google-mark" aria-hidden="true">
+          G
+        </span>
+        Google
       </button>
     </div>
   );

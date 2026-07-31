@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
-import { Mail, UserRound } from "lucide-react";
+import { Mail, Settings } from "lucide-react";
 
 import { ConfigurationNeeded } from "@/components/configuration-needed";
+import { AppearanceSettings } from "@/components/appearance-settings";
+import { DeviceNotificationSettings } from "@/components/device-notification-settings";
 import { ProfileForm } from "@/components/profile-form";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { requireUser } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Perfil"
+  title: "Ajustes"
 };
 
 export default async function ProfilePage() {
@@ -37,10 +39,10 @@ export default async function ProfilePage() {
     <div className="narrow-page profile-page">
       <header className="page-heading">
         <span className="eyebrow">
-          <UserRound size={14} />
-          Tu cuenta
+          <Settings size={14} />
+          Ajustes de cuenta
         </span>
-        <h1>Así te ven en el ránking.</h1>
+        <h1>Tu perfil en HeVi.</h1>
         <p>Actualiza tu nombre y la foto que aparecerá junto a tus puntos.</p>
       </header>
       <section className="profile-card">
@@ -53,6 +55,11 @@ export default async function ProfilePage() {
           </span>
         </div>
       </section>
+      <AppearanceSettings
+        initialTheme={profile.theme_preference}
+        initialAccent={profile.accent_color}
+      />
+      <DeviceNotificationSettings />
     </div>
   );
 }

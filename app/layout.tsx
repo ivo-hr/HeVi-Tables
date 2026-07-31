@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     default: "HeVi Tables",
     template: "%s · HeVi Tables"
   },
-  description: "Tablas, apuestas entre amigos y ránkings sin discusiones.",
+  description: "Predicciones privadas, resultados cerrados y ránkings con memoria.",
   applicationName: "HeVi Tables",
   appleWebApp: {
     capable: true,
@@ -25,15 +25,18 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f4efe5",
-  colorScheme: "light"
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4efe5" },
+    { media: "(prefers-color-scheme: dark)", color: "#101713" }
+  ],
+  colorScheme: "light dark"
 };
 
 export default function RootLayout({
   children
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es">
+    <html lang="es" data-scroll-behavior="smooth">
       <body>
         {children}
         <ServiceWorkerRegister />

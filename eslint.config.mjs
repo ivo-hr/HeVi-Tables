@@ -8,7 +8,9 @@ export default defineConfig([
     ".next/**",
     "coverage/**",
     "next-env.d.ts",
-    "public/sw.js"
+    "public/sw.js",
+    "supabase/functions/**",
+    "supabase/.temp/**"
   ]),
   {
     ...js.configs.recommended,

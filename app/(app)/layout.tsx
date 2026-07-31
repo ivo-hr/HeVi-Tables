@@ -11,11 +11,16 @@ export default async function ProtectedLayout({
   }
 
   const { supabase, user } = await requireUser();
-  const { data } = await supabase
-    .from("perfiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [profileResult, notificationsResult] = await Promise.all([
+    supabase.from("perfiles").select("*").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("notificaciones")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(30)
+  ]);
+  const data = profileResult.data;
 
   const fallbackName =
     user.user_metadata.full_name ??
@@ -28,9 +33,19 @@ export default async function ProtectedLayout({
       id: user.id,
       username: String(fallbackName).slice(0, 30),
       avatar_url: null,
+      theme_preference: "system",
+      accent_color: "emerald",
       created_at: user.created_at,
       updated_at: user.updated_at ?? user.created_at
     } satisfies Profile);
 
-  return <AppShell profile={profile}>{children}</AppShell>;
+  return (
+    <AppShell
+      profile={profile}
+      userId={user.id}
+      notifications={notificationsResult.data ?? []}
+    >
+      {children}
+    </AppShell>
+  );
 }

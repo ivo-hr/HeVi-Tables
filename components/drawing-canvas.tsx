@@ -10,11 +10,16 @@ import {
 } from "react";
 import { RotateCcw, Undo2 } from "lucide-react";
 
-type Point = { x: number; y: number };
-type Stroke = { color: string; points: Point[] };
+import {
+  smoothStrokePoints,
+  type DrawingPoint as Point
+} from "@/lib/drawing";
+
+type Stroke = { color: string; points: Point[]; finalized: boolean };
 
 export type DrawingCanvasHandle = {
   exportPng: () => Promise<Blob>;
+  hasDrawing: () => boolean;
 };
 
 const colors = ["#14a074", "#f4b740", "#ef6a68", "#4b7bec"];
@@ -34,7 +39,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
         width: number,
         height: number
       ) => {
-        const points = stroke.points.map((point) => ({
+        const sourcePoints = stroke.finalized
+          ? stroke.points
+          : smoothStrokePoints(stroke.points);
+        const points = sourcePoints.map((point) => ({
           x: point.x * width,
           y: point.y * height
         }));
@@ -55,22 +63,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
 
         context.beginPath();
         context.moveTo(points[0].x, points[0].y);
-        for (let index = 1; index < points.length - 1; index += 1) {
+        for (let index = 0; index < points.length - 1; index += 1) {
+          const previous = points[index - 1] ?? points[index];
           const current = points[index];
           const next = points[index + 1];
-          const midpoint = {
-            x: (current.x + next.x) / 2,
-            y: (current.y + next.y) / 2
-          };
-          context.quadraticCurveTo(
-            current.x,
-            current.y,
-            midpoint.x,
-            midpoint.y
+          const following = points[index + 2] ?? next;
+          context.bezierCurveTo(
+            current.x + (next.x - previous.x) / 6,
+            current.y + (next.y - previous.y) / 6,
+            next.x - (following.x - current.x) / 6,
+            next.y - (following.y - current.y) / 6,
+            next.x,
+            next.y
           );
         }
-        const last = points.at(-1);
-        if (last) context.lineTo(last.x, last.y);
         context.stroke();
       },
       []
@@ -127,7 +133,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
 
     const finishStroke = (event: React.PointerEvent<HTMLCanvasElement>) => {
       if (!activeStrokeRef.current) return;
-      strokesRef.current.push(activeStrokeRef.current);
+      strokesRef.current.push({
+        ...activeStrokeRef.current,
+        points: smoothStrokePoints(activeStrokeRef.current.points),
+        finalized: true
+      });
       activeStrokeRef.current = null;
       setStrokeCount(strokesRef.current.length);
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -139,10 +149,38 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
     useImperativeHandle(
       forwardedRef,
       () => ({
+        hasDrawing: () =>
+          strokesRef.current.length > 0 || activeStrokeRef.current !== null,
         exportPng: () =>
           new Promise<Blob>((resolve, reject) => {
             redraw();
-            canvasRef.current?.toBlob((blob) => {
+            const source = canvasRef.current;
+            if (!source) {
+              reject(new Error("No se pudo exportar el dibujo."));
+              return;
+            }
+
+            // Cap the exported PNG to 1024 px on the longest side so the file
+            // stays well under 1 MB even on high-DPR displays with many strokes.
+            const MAX_EXPORT_DIMENSION = 1024;
+            const longest = Math.max(source.width, source.height);
+            const scale =
+              longest > MAX_EXPORT_DIMENSION
+                ? MAX_EXPORT_DIMENSION / longest
+                : 1;
+            const targetWidth = Math.max(1, Math.round(source.width * scale));
+            const targetHeight = Math.max(1, Math.round(source.height * scale));
+
+            const exportCanvas = document.createElement("canvas");
+            exportCanvas.width = targetWidth;
+            exportCanvas.height = targetHeight;
+            const context = exportCanvas.getContext("2d");
+            if (!context) {
+              reject(new Error("No se pudo exportar el dibujo."));
+              return;
+            }
+            context.drawImage(source, 0, 0, targetWidth, targetHeight);
+            exportCanvas.toBlob((blob) => {
               if (blob) resolve(blob);
               else reject(new Error("No se pudo exportar el dibujo."));
             }, "image/png");
@@ -159,7 +197,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
             aria-label="Lienzo para dibujar la portada"
             onPointerDown={(event) => {
               event.currentTarget.setPointerCapture(event.pointerId);
-              activeStrokeRef.current = { color, points: [getPoint(event)] };
+              activeStrokeRef.current = {
+                color,
+                points: [getPoint(event)],
+                finalized: false
+              };
               redraw();
             }}
             onPointerMove={(event) => {

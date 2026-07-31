@@ -28,3 +28,6 @@ enable_signup = true
 [storage]
 enabled = true
 file_size_limit = "5MiB"
+
+[functions.send-push]
+verify_jwt = false

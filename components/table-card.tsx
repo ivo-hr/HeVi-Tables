@@ -7,7 +7,7 @@ import type { Table } from "@/lib/types";
 
 export function TableCard({ table }: { table: Table }) {
   return (
-    <Link href={`/tablas/${table.id}`} className="table-card">
+    <Link href={`/grupos/${table.group_id}/tablas/${table.id}`} className="table-card">
       <div className="table-card-art">
         {table.design_url ? (
           <Image
@@ -29,6 +29,7 @@ export function TableCard({ table }: { table: Table }) {
         <div>
           <span className="card-kicker">{pointSystemLabel(table.point_system)}</span>
           <h3>{table.name}</h3>
+          {table.description ? <p className="table-card-description">{table.description}</p> : null}
         </div>
         <span className="card-arrow">
           <ArrowUpRight size={18} />
@@ -38,7 +39,11 @@ export function TableCard({ table }: { table: Table }) {
             <Users size={14} />
             {table.max_point} pts máx.
           </span>
-          <span>{formatDate(table.closed_date ?? table.created_at)}</span>
+          <span>
+            {table.scheduled_close_date
+              ? `Prev. ${formatDate(table.scheduled_close_date)}`
+              : formatDate(table.closed_date ?? table.created_at)}
+          </span>
         </div>
       </div>
     </Link>

@@ -1,5 +1,6 @@
-const CACHE_NAME = "hevi-static-v1";
+const CACHE_NAME = "hevi-static-v2";
 const STATIC_ASSETS = ["/offline", "/icons/192", "/icons/512"];
+const IS_LOCAL = ["localhost", "127.0.0.1"].includes(self.location.hostname);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -20,6 +21,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  if (IS_LOCAL) return;
   const request = event.request;
   const url = new URL(request.url);
 
@@ -44,4 +46,34 @@ self.addEventListener("fetch", (event) => {
       })
     );
   }
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data?.json() ?? {};
+  } catch {
+    payload = { title: "HeVi", body: event.data?.text() ?? "Tienes una novedad." };
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title || "HeVi", {
+      body: payload.body || "Tienes una novedad.",
+      icon: "/icons/192",
+      badge: "/icons/192",
+      tag: payload.tag || "hevi-notification",
+      data: { url: payload.url || "/" }
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((client) => client.url === targetUrl);
+      return existing ? existing.focus() : self.clients.openWindow(targetUrl);
+    })
+  );
 });

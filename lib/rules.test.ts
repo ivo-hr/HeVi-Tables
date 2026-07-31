@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { calculatePoints, RuleValidationError } from "@/lib/rules";
+import {
+  calculatePoints,
+  calculateProvisionalPoints,
+  RuleValidationError,
+  sortByNumericValue
+} from "@/lib/rules";
 
 const rows = [
   { id: "a", position: 1, pointsReceivable: 7 },
@@ -47,5 +52,46 @@ describe("calculatePoints", () => {
         { id: "a", position: null, pointsReceivable: 11 }
       ])
     ).toThrow("entre 0 y 10");
+  });
+});
+
+describe("sortByNumericValue", () => {
+  const numericRows = [
+    { id: "b", numeric_value: 10, created_at: "2026-01-01T00:00:01Z" },
+    { id: "a", numeric_value: 5, created_at: "2026-01-01T00:00:00Z" },
+    { id: "c", numeric_value: 10, created_at: "2026-01-01T00:00:02Z" }
+  ];
+
+  it("sorts ascending or descending with a stable creation-order tie break", () => {
+    expect(sortByNumericValue(numericRows, "asc").map((row) => row.id)).toEqual([
+      "a",
+      "b",
+      "c"
+    ]);
+    expect(sortByNumericValue(numericRows, "desc").map((row) => row.id)).toEqual([
+      "b",
+      "c",
+      "a"
+    ]);
+  });
+
+  it("does not mutate the row array", () => {
+    const before = structuredClone(numericRows);
+    sortByNumericValue(numericRows, "desc");
+    expect(numericRows).toEqual(before);
+  });
+});
+
+describe("calculateProvisionalPoints", () => {
+  it("derives open-table scores from manual or automatic positions", () => {
+    expect(
+      calculateProvisionalPoints("WtA", 10, { position: null, pointsReceivable: null }, 1)
+    ).toBe(10);
+    expect(
+      calculateProvisionalPoints("Pod", 10, { position: null, pointsReceivable: null }, 3)
+    ).toBe(6);
+    expect(
+      calculateProvisionalPoints("EC", 10, { position: null, pointsReceivable: 7 })
+    ).toBe(7);
   });
 });

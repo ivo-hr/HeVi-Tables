@@ -4,8 +4,9 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "HeVi Tables",
     short_name: "HeVi",
-    description: "Tablas, apuestas entre amigos y ránkings sin discusiones.",
+    description: "Predicciones privadas, resultados cerrados y ránkings con memoria.",
     start_url: "/",
+    id: "/",
     display: "standalone",
     background_color: "#f4efe5",
     theme_color: "#f4efe5",

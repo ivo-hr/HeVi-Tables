@@ -30,16 +30,16 @@ export default function LoginPage() {
         <div className="auth-story-copy">
           <span className="eyebrow">
             <Sparkles size={14} />
-            Tablas entre amigos
+            Predicciones con memoria
           </span>
           <h1>
-            Menos cuentas.
+            Menos mensajes.
             <br />
-            Más <em>pique.</em>
+            Más <em>pruebas.</em>
           </h1>
           <p>
-            Predicciones, apuestas y retos privados con reglas claras y un
-            ránking que se actualiza solo.
+            Predicciones privadas con reglas claras, resultados cerrados y un
+            ránking que recuerda quién dijo qué.
           </p>
         </div>
         <div className="auth-perks">
@@ -56,8 +56,8 @@ export default function LoginPage() {
       <section className="auth-access">
         <div className="auth-access-heading">
           <span className="eyebrow">Bienvenido</span>
-          <h2>Entra en la partida</h2>
-          <p>Usa tu email o el acceso rápido de GitHub.</p>
+          <h2>Accede a tu cuenta</h2>
+          <p>Usa tu email o el acceso rápido de Google.</p>
         </div>
         <Suspense fallback={<div className="auth-panel skeleton-panel" />}>
           <AuthForm />

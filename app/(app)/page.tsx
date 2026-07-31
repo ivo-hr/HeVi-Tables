@@ -1,169 +1,127 @@
-import { ArrowRight, Flame, Plus, Sparkles, Trophy } from "lucide-react";
-import Link from "next/link";
+import { ArrowDown, Sparkles, UsersRound } from "lucide-react";
 
 import { ConfigurationNeeded } from "@/components/configuration-needed";
-import { Leaderboard } from "@/components/leaderboard";
-import { TableCard } from "@/components/table-card";
+import { GroupCard } from "@/components/group-card";
+import { GroupForm } from "@/components/group-forms";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { requireUser } from "@/lib/supabase/server";
-import type { LeaderboardEntry } from "@/lib/types";
 
-type DashboardProps = {
-  searchParams: Promise<{ period?: string; table?: string }>;
-};
-
-const periods = [
-  { value: "week", label: "Semana" },
-  { value: "month", label: "Mes" },
-  { value: "all", label: "Histórico" }
-] as const;
-
-export default async function Dashboard({ searchParams }: DashboardProps) {
+export default async function GroupsHome() {
   if (!isSupabaseConfigured()) {
     return <ConfigurationNeeded />;
   }
 
-  const { period: rawPeriod, table: rawTable } = await searchParams;
-  const period = periods.some((item) => item.value === rawPeriod)
-    ? (rawPeriod as "week" | "month" | "all")
-    : "week";
-  const tableId =
-    rawTable && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(rawTable) ? rawTable : null;
   const { supabase, user } = await requireUser();
+  const membershipsResult = await supabase
+    .from("grupo_miembros")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("joined_at", { ascending: true });
 
-  const [rankingResult, tablesResult] = await Promise.all([
-    supabase.rpc("get_leaderboard", {
-      p_period: period,
-      p_table_id: tableId
-    }),
-    supabase
-      .from("tablas")
-      .select("*")
-      .order("created_at", { ascending: false })
-  ]);
+  const memberships = membershipsResult.data ?? [];
+  const groupIds = memberships.map((membership) => membership.group_id);
+  const [groupsResult, allMembersResult, tablesResult] = groupIds.length
+    ? await Promise.all([
+        supabase
+          .from("grupos")
+          .select("*")
+          .in("id", groupIds)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("grupo_miembros")
+          .select("group_id, user_id")
+          .in("group_id", groupIds),
+        supabase
+          .from("tablas")
+          .select("id, group_id, closed")
+          .in("group_id", groupIds)
+      ])
+    : [
+        { data: [], error: null },
+        { data: [], error: null },
+        { data: [], error: null }
+      ];
 
-  const entries = (rankingResult.data ?? []) as LeaderboardEntry[];
+  const groups = groupsResult.data ?? [];
+  const allMembers = allMembersResult.data ?? [];
   const tables = tablesResult.data ?? [];
-  const currentRank = entries.findIndex((entry) => entry.user_id === user.id);
-  const currentEntry = currentRank >= 0 ? entries[currentRank] : null;
-  const openTables = tables.filter((table) => !table.closed);
-  const selectedTable = tables.find((table) => table.id === tableId);
+  const hasLoadError =
+    membershipsResult.error || groupsResult.error || allMembersResult.error || tablesResult.error;
 
   return (
-    <>
-      <section className="dashboard-hero">
+    <div className="groups-home">
+      <section className="groups-hero">
         <div>
           <span className="eyebrow">
             <Sparkles size={14} />
-            Ránking entre amigos
+            Tus grupos
           </span>
           <h1>
-            Que hablen
+            Organiza el caos.
             <br />
-            <em>los puntos.</em>
+            Luego, <em>los datos.</em>
           </h1>
           <p>
-            Crea una tabla, apunta las predicciones y deja que HeVi haga las
-            cuentas cuando llegue el resultado.
+            Cada grupo mantiene sus tablas, su ránking y sus decisiones
+            cuestionables en un mismo sitio.
           </p>
-          <Link href="/tablas/nueva" className="primary-button">
-            <Plus size={18} />
-            Crear una tabla
-          </Link>
+          <a href="#mis-grupos" className="hero-text-link">
+            Ver mis grupos <ArrowDown size={17} />
+          </a>
         </div>
-        <aside className="personal-score">
-          <span className="score-icon">
-            <Flame size={23} />
+        <div className="groups-hero-orbit" aria-hidden="true">
+          <span className="orbit-main">
+            <UsersRound size={46} />
           </span>
-          <small>Tu posición · {periods.find((item) => item.value === period)?.label}</small>
-          <strong>{currentRank >= 0 ? `#${currentRank + 1}` : "—"}</strong>
-          <p>
-            <b>{currentEntry?.points ?? 0}</b> puntos en{" "}
-            {currentEntry?.tables_count ?? 0} tablas
-          </p>
-        </aside>
+          <span className="orbit-dot dot-one" />
+          <span className="orbit-dot dot-two" />
+          <span className="orbit-dot dot-three" />
+        </div>
       </section>
 
-      <section className="ranking-section">
+      <section className="my-groups-section" id="mis-grupos">
         <div className="section-title-row">
           <div>
-            <span className="eyebrow">
-              <Trophy size={14} />
-              Clasificación
-            </span>
-            <h2>{selectedTable?.name ?? "Ránking global"}</h2>
+            <span className="eyebrow">Tus espacios</span>
+            <h2>Mis grupos</h2>
           </div>
-          <form className="table-filter">
-            <input type="hidden" name="period" value={period} />
-            <label htmlFor="table-filter">Filtrar tabla</label>
-            <select
-              id="table-filter"
-              name="table"
-              defaultValue={tableId ?? ""}
-            >
-              <option value="">Todas las tablas</option>
-              {tables.map((table) => (
-                <option key={table.id} value={table.id}>
-                  {table.name}
-                </option>
-              ))}
-            </select>
-            <button>Aplicar</button>
-          </form>
+          {groups.length ? <span className="open-count">{groups.length} activos</span> : null}
         </div>
-        <div className="period-tabs" aria-label="Periodo del ránking">
-          {periods.map((item) => {
-            const params = new URLSearchParams({ period: item.value });
-            if (tableId) params.set("table", tableId);
-            return (
-              <Link
-                key={item.value}
-                href={`/?${params}`}
-                className={period === item.value ? "active" : undefined}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-        {rankingResult.error ? (
+
+        {hasLoadError ? (
           <p className="form-message error">
-            No se pudo cargar el ránking. Comprueba que la migración esté aplicada.
+            No se pudieron cargar los grupos. Comprueba que la nueva migración esté aplicada.
           </p>
+        ) : groups.length ? (
+          <div className="groups-grid">
+            {groups.map((group) => {
+              const membership = memberships.find((item) => item.group_id === group.id);
+              const groupTables = tables.filter((table) => table.group_id === group.id);
+              return (
+                <GroupCard
+                  key={group.id}
+                  group={group}
+                  role={membership?.role ?? "member"}
+                  memberCount={allMembers.filter((item) => item.group_id === group.id).length}
+                  tableCount={groupTables.length}
+                  openTableCount={groupTables.filter((table) => !table.closed).length}
+                />
+              );
+            })}
+          </div>
         ) : (
-          <Leaderboard entries={entries} />
+          <div className="empty-groups">
+            <UsersRound size={36} />
+            <h2>Aquí aparecerán tus grupos</h2>
+            <p>Crea uno nuevo o entra con el código que te pase un amigo.</p>
+          </div>
         )}
       </section>
 
-      <section className="tables-section">
-        <div className="section-title-row">
-          <div>
-            <span className="eyebrow">En juego</span>
-            <h2>Tablas recientes</h2>
-          </div>
-          {openTables.length ? (
-            <span className="open-count">{openTables.length} abiertas</span>
-          ) : null}
-        </div>
-        {tables.length ? (
-          <div className="table-grid">
-            {tables.slice(0, 6).map((table) => (
-              <TableCard key={table.id} table={table} />
-            ))}
-          </div>
-        ) : (
-          <Link href="/tablas/nueva" className="first-table-card">
-            <span>
-              <Plus size={24} />
-            </span>
-            <div>
-              <strong>Crea la primera tabla</strong>
-              <p>Elige las reglas y dibuja una portada en menos de un minuto.</p>
-            </div>
-            <ArrowRight size={21} />
-          </Link>
-        )}
+      <section className="group-actions-grid" aria-label="Añadir un grupo">
+        <GroupForm mode="create" />
+        <GroupForm mode="join" />
       </section>
-    </>
+    </div>
   );
 }

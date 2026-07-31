@@ -1,4 +1,4 @@
-import type { PointSystem } from "@/lib/types";
+import type { NumberSortOrder, PointSystem } from "@/lib/types";
 
 export type ScorableRow = {
   id: string;
@@ -15,6 +15,36 @@ export class RuleValidationError extends Error {
     super(message);
     this.name = "RuleValidationError";
   }
+}
+
+export function sortByNumericValue<
+  Row extends { id: string; numeric_value: number | null; created_at: string }
+>(rows: readonly Row[], order: NumberSortOrder): Row[] {
+  const direction = order === "asc" ? 1 : -1;
+  return [...rows].sort((left, right) => {
+    const difference =
+      ((left.numeric_value ?? 0) - (right.numeric_value ?? 0)) * direction;
+    return (
+      difference ||
+      left.created_at.localeCompare(right.created_at) ||
+      left.id.localeCompare(right.id)
+    );
+  });
+}
+
+export function calculateProvisionalPoints(
+  pointSystem: PointSystem,
+  maxPoint: number,
+  row: Pick<ScorableRow, "position" | "pointsReceivable">,
+  automaticPosition?: number
+) {
+  if (pointSystem === "EC") {
+    return Math.max(0, Math.min(row.pointsReceivable ?? 0, maxPoint));
+  }
+
+  const position = automaticPosition ?? row.position;
+  if (pointSystem === "WtA") return position === 1 ? maxPoint : 0;
+  return position ? Math.max(maxPoint - (position - 1) * 2, 0) : 0;
 }
 
 export function calculatePoints(

@@ -20,7 +20,12 @@ import {
   updateRowAction
 } from "@/app/actions/tables";
 import { Avatar } from "@/components/avatar";
+import {
+  EvidencePicker,
+  type EvidencePreview
+} from "@/components/evidence-picker";
 import { formatPoints } from "@/lib/format";
+import { calculateProvisionalPoints, sortByNumericValue } from "@/lib/rules";
 import type {
   ActionResult,
   Profile,
@@ -33,6 +38,8 @@ type RowEditorProps = {
   rows: TableRow[];
   profiles: Profile[];
   editable: boolean;
+  isCreator: boolean;
+  evidenceUrls: Record<string, string>;
 };
 
 type RowFormProps = {
@@ -40,6 +47,7 @@ type RowFormProps = {
   profiles: Profile[];
   row?: TableRow;
   onDone?: () => void;
+  evidenceUrls: Record<string, string>;
 };
 
 function Participants({
@@ -96,6 +104,18 @@ function RuleInput({ table, row }: { table: Table; row?: TableRow }) {
     );
   }
 
+  if (table.info_format === "number") {
+    return (
+      <div className="automatic-rule-note">
+        <Crown size={18} />
+        <span>
+          <strong>Orden automático</strong>
+          {table.number_sort_order === "asc" ? "Gana la cantidad menor." : "Gana la cantidad mayor."}
+        </span>
+      </div>
+    );
+  }
+
   if (table.point_system === "WtA") {
     return (
       <label className="winner-toggle">
@@ -133,21 +153,27 @@ function RuleInput({ table, row }: { table: Table; row?: TableRow }) {
   );
 }
 
-function EditableRowForm({ table, profiles, row, onDone }: RowFormProps) {
+function EditableRowForm({ table, profiles, row, onDone, evidenceUrls }: RowFormProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<ActionResult>({ ok: false });
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
+  const [evidenceResetKey, setEvidenceResetKey] = useState(0);
   const [pending, startTransition] = useTransition();
   const isNew = !row;
 
   const runAction = (formData: FormData) => {
+    evidenceFiles.forEach((file) => formData.append("evidence_files", file));
     startTransition(async () => {
       const result = isNew
         ? await addRowAction(formData)
         : await updateRowAction(formData);
       setState(result);
       if (result.ok) {
-        if (isNew) formRef.current?.reset();
+        if (isNew) {
+          formRef.current?.reset();
+          setEvidenceResetKey((current) => current + 1);
+        }
         router.refresh();
         onDone?.();
       }
@@ -167,18 +193,39 @@ function EditableRowForm({ table, profiles, row, onDone }: RowFormProps) {
         selected={row?.user_ids ?? []}
       />
       <div className="row-fields">
-        <label className="field">
-          <span>Notas</span>
-          <textarea
-            name="notes"
-            maxLength={500}
-            rows={2}
-            defaultValue={row?.notes ?? ""}
-            placeholder="Qué apostáis, detalles, desempates…"
-          />
-        </label>
+        {table.info_format === "number" ? (
+          <label className="field">
+            <span>Cantidad</span>
+            <input
+              name="numeric_value"
+              type="number"
+              step="any"
+              defaultValue={row?.numeric_value ?? ""}
+              placeholder="0"
+              required
+            />
+          </label>
+        ) : (
+          <label className="field">
+            <span>Texto</span>
+            <textarea
+              name="notes"
+              maxLength={500}
+              rows={2}
+              defaultValue={row?.notes ?? ""}
+              placeholder="Qué apostáis, detalles, desempates…"
+            />
+          </label>
+        )}
         <RuleInput table={table} row={row} />
       </div>
+      <EvidencePicker
+        existing={(row?.evidence_paths ?? []).flatMap((path) =>
+          evidenceUrls[path] ? [{ path, url: evidenceUrls[path] }] : []
+        )}
+        onFilesChange={setEvidenceFiles}
+        resetKey={evidenceResetKey}
+      />
       {state.message ? (
         <p className={state.ok ? "form-message success" : "form-message error"}>
           {state.message}
@@ -225,16 +272,31 @@ function ReadonlyRow({
   table,
   row,
   profiles,
-  index
+  index,
+  evidence
 }: {
   table: Table;
   row: TableRow;
   profiles: Profile[];
   index: number;
+  evidence: EvidencePreview[];
 }) {
   const rowProfiles = row.user_ids
     .map((id) => profiles.find((profile) => profile.id === id))
     .filter((profile): profile is Profile => Boolean(profile));
+  const points = table.closed
+    ? row.points_won
+    : calculateProvisionalPoints(
+        table.point_system,
+        table.max_point,
+        {
+          position: row.position,
+          pointsReceivable: row.points_receivable
+        },
+        table.info_format === "number" && table.point_system !== "EC"
+          ? index + 1
+          : undefined
+      );
 
   return (
     <article className="readonly-row">
@@ -252,33 +314,37 @@ function ReadonlyRow({
         </div>
         <div>
           <strong>{rowProfiles.map((profile) => profile.username).join(" + ")}</strong>
-          <p>{row.notes || "Sin notas"}</p>
+          <p>
+            {table.info_format === "number"
+              ? formatNumericValue(row.numeric_value)
+              : row.notes || "Sin texto"}
+          </p>
         </div>
       </div>
       <div className="row-result">
-        {table.closed ? (
-          <>
-            <strong>{formatPoints(row.points_won)}</strong>
-            <span>puntos</span>
-          </>
-        ) : table.point_system === "EC" ? (
-          <>
-            <strong>{row.points_receivable ?? 0}</strong>
-            <span>previstos</span>
-          </>
-        ) : row.position ? (
-          <>
-            <strong>{row.position}º</strong>
-            <span>posición</span>
-          </>
-        ) : (
-          <>
-            <strong>—</strong>
-            <span>sin resultado</span>
-          </>
-        )}
+        <strong>{formatPoints(points)}</strong>
+        <span>{table.closed ? "puntos" : "puntos provisionales"}</span>
       </div>
+      {evidence.length ? <EvidenceGallery evidence={evidence} /> : null}
     </article>
+  );
+}
+
+function formatNumericValue(value: number | null) {
+  return value === null
+    ? "Sin cantidad"
+    : new Intl.NumberFormat("es-ES", { maximumFractionDigits: 6 }).format(value);
+}
+
+function EvidenceGallery({ evidence }: { evidence: EvidencePreview[] }) {
+  return (
+    <div className="readonly-evidence" aria-label="Evidencias del registro">
+      {evidence.map((item, index) => (
+        <a href={item.url} target="_blank" rel="noreferrer" key={item.path}>
+          <img src={item.url} alt={`Evidencia ${index + 1}`} />
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -328,20 +394,37 @@ function CloseTableButton({ table }: { table: Table }) {
   );
 }
 
-export function RowEditor({ table, rows, profiles, editable }: RowEditorProps) {
+export function RowEditor({
+  table,
+  rows,
+  profiles,
+  editable,
+  isCreator,
+  evidenceUrls
+}: RowEditorProps) {
   const [showNew, setShowNew] = useState(rows.length === 0);
+  const orderedRows =
+    table.info_format === "number" && table.point_system !== "EC"
+      ? sortByNumericValue(rows, table.number_sort_order ?? "desc")
+      : rows;
+
+  const evidenceFor = (row: TableRow) =>
+    row.evidence_paths.flatMap((path) =>
+      evidenceUrls[path] ? [{ path, url: evidenceUrls[path] }] : []
+    );
 
   if (!editable) {
     return (
       <section className="rows-list">
-        {rows.length ? (
-          rows.map((row, index) => (
+        {orderedRows.length ? (
+          orderedRows.map((row, index) => (
             <ReadonlyRow
               key={row.id}
               table={table}
               row={row}
               profiles={profiles}
               index={index}
+              evidence={evidenceFor(row)}
             />
           ))
         ) : (
@@ -353,7 +436,7 @@ export function RowEditor({ table, rows, profiles, editable }: RowEditorProps) {
 
   return (
     <div className="editor-stack">
-      {rows.map((row, index) => (
+      {orderedRows.map((row, index) => (
         <details className="editable-row" key={row.id}>
           <summary>
             <span className="row-index">{String(index + 1).padStart(2, "0")}</span>
@@ -364,17 +447,45 @@ export function RowEditor({ table, rows, profiles, editable }: RowEditorProps) {
                   .filter(Boolean)
                   .join(" + ")}
               </strong>
-              <small>{row.notes || "Sin notas"}</small>
+              <small>
+                {table.info_format === "number"
+                  ? formatNumericValue(row.numeric_value)
+                  : row.notes || "Sin texto"}
+              </small>
             </span>
-            <span className="edit-affordance">Editar</span>
+            <span className="editable-row-result">
+              <strong>
+                {formatPoints(
+                  calculateProvisionalPoints(
+                    table.point_system,
+                    table.max_point,
+                    {
+                      position: row.position,
+                      pointsReceivable: row.points_receivable
+                    },
+                    table.info_format === "number" && table.point_system !== "EC"
+                      ? index + 1
+                      : undefined
+                  )
+                )}
+              </strong>
+              <small>pts.</small>
+              <span className="edit-affordance">Editar</span>
+            </span>
           </summary>
-          <EditableRowForm table={table} profiles={profiles} row={row} />
+          <EditableRowForm
+            table={table}
+            profiles={profiles}
+            row={row}
+            evidenceUrls={evidenceUrls}
+          />
         </details>
       ))}
       {showNew ? (
         <EditableRowForm
           table={table}
           profiles={profiles}
+          evidenceUrls={evidenceUrls}
           onDone={() => setShowNew(false)}
         />
       ) : (
@@ -383,7 +494,7 @@ export function RowEditor({ table, rows, profiles, editable }: RowEditorProps) {
           Añadir otra fila
         </button>
       )}
-      <CloseTableButton table={table} />
+      {isCreator ? <CloseTableButton table={table} /> : null}
     </div>
   );
 }

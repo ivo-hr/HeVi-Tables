@@ -10,7 +10,7 @@ export function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
       <div className="empty-ranking">
         <Crown size={35} />
         <h3>El podio está esperando</h3>
-        <p>Cierra la primera tabla para estrenar el ránking.</p>
+        <p>Cierra una tabla para que aparezcan resultados.</p>
       </div>
     );
   }
