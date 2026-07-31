@@ -1,0 +1,2 @@
+-- Intentionally empty.
+-- Profiles are created automatically when users register through Supabase Auth.
