@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { LoaderCircle, Monitor, Moon, Palette, Save, Sun } from "lucide-react";
 
 import { updateAppearanceAction } from "@/app/actions/preferences";
+import { useLanguage } from "@/components/language-provider";
 import { applyAppearance } from "@/components/theme-controller";
 import type {
   AccentColor,
@@ -36,6 +37,7 @@ export function AppearanceSettings({
   initialTheme: ThemePreference;
   initialAccent: AccentColor;
 }) {
+  const { t } = useLanguage();
   const [theme, setTheme] = useState(initialTheme);
   const [accent, setAccent] = useState(initialAccent);
   const [state, setState] = useState<ActionResult>({ ok: false });
@@ -55,9 +57,9 @@ export function AppearanceSettings({
           <Palette size={19} />
         </span>
         <div>
-          <span className="eyebrow">Apariencia</span>
-          <h2>Que no parezca el mismo sitio</h2>
-          <p>Elige cómo quieres verlo. No mejora tus resultados, pero algo hace.</p>
+          <span className="eyebrow">{t("Apariencia", "Appearance")}</span>
+          <h2>{t("Que no parezca el mismo sitio", "Make it look like your place")}</h2>
+          <p>{t("Elige cómo quieres verlo. No mejora tus resultados, pero algo hace.", "Choose how it looks. It will not improve your results, but it does something.")}</p>
         </div>
       </div>
 
@@ -71,7 +73,7 @@ export function AppearanceSettings({
         }}
       >
         <fieldset className="appearance-options">
-          <legend>Tema</legend>
+          <legend>{t("Tema", "Theme")}</legend>
           <div className="theme-options">
             {themes.map((item) => {
               const Icon = item.icon;
@@ -84,14 +86,14 @@ export function AppearanceSettings({
                   aria-pressed={theme === item.value}
                 >
                   <Icon size={19} />
-                  {item.label}
+                  {item.value === "light" ? t("Claro", "Light") : item.value === "dark" ? t("Oscuro", "Dark") : t("Sistema", "System")}
                 </button>
               );
             })}
           </div>
         </fieldset>
         <fieldset className="appearance-options">
-          <legend>Color principal</legend>
+          <legend>{t("Color principal", "Accent colour")}</legend>
           <div className="accent-options">
             {accents.map((item) => (
               <button
@@ -99,9 +101,9 @@ export function AppearanceSettings({
                 type="button"
                 className={accent === item.value ? "active" : undefined}
                 onClick={() => preview(theme, item.value)}
-                aria-label={item.label}
+                aria-label={item.value === "emerald" ? t("Esmeralda", "Emerald") : item.value === "blue" ? t("Azul", "Blue") : item.value === "violet" ? t("Violeta", "Violet") : item.value === "orange" ? t("Naranja", "Orange") : t("Rosa", "Rose")}
                 aria-pressed={accent === item.value}
-                title={item.label}
+                title={item.value === "emerald" ? t("Esmeralda", "Emerald") : item.value === "blue" ? t("Azul", "Blue") : item.value === "violet" ? t("Violeta", "Violet") : item.value === "orange" ? t("Naranja", "Orange") : t("Rosa", "Rose")}
               >
                 <span style={{ backgroundColor: item.color }} />
               </button>
@@ -115,7 +117,7 @@ export function AppearanceSettings({
         ) : null}
         <button className="primary-button" disabled={pending}>
           {pending ? <LoaderCircle className="spin" size={18} /> : <Save size={18} />}
-          {pending ? "Guardando…" : "Guardar apariencia"}
+          {pending ? t("Guardando…", "Saving…") : t("Guardar apariencia", "Save appearance")}
         </button>
       </form>
     </section>

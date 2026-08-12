@@ -4,15 +4,20 @@ import { Mail, Settings } from "lucide-react";
 import { ConfigurationNeeded } from "@/components/configuration-needed";
 import { AppearanceSettings } from "@/components/appearance-settings";
 import { DeviceNotificationSettings } from "@/components/device-notification-settings";
+import { LanguageSettings } from "@/components/language-settings";
+import { LegalDisclosure } from "@/components/legal-disclosure";
 import { ProfileForm } from "@/components/profile-form";
+import { getServerTranslator } from "@/lib/i18n-server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { requireUser } from "@/lib/supabase/server";
 
-export const metadata: Metadata = {
-  title: "Ajustes"
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getServerTranslator();
+  return { title: t("Ajustes", "Settings") };
+}
 
 export default async function ProfilePage() {
+  const { t } = await getServerTranslator();
   if (!isSupabaseConfigured()) {
     return <ConfigurationNeeded />;
   }
@@ -28,8 +33,10 @@ export default async function ProfilePage() {
     return (
       <section className="profile-card">
         <p className="form-message error">
-          No existe el perfil. Aplica la migración de Supabase y vuelve a iniciar
-          sesión.
+          {t(
+            "No existe el perfil. Aplica la migración de Supabase y vuelve a iniciar sesión.",
+            "The profile does not exist. Apply the Supabase migration and sign in again."
+          )}
         </p>
       </section>
     );
@@ -40,17 +47,17 @@ export default async function ProfilePage() {
       <header className="page-heading">
         <span className="eyebrow">
           <Settings size={14} />
-          Ajustes de cuenta
+          {t("Ajustes de cuenta", "Account settings")}
         </span>
-        <h1>Tu perfil en HeVi.</h1>
-        <p>Actualiza tu nombre y la foto que aparecerá junto a tus puntos.</p>
+        <h1>{t("Tu perfil en HeVi.", "Your HeVi profile.")}</h1>
+        <p>{t("Actualiza tu nombre y la foto que aparecerá junto a tus puntos.", "Update the name and photo shown next to your points.")}</p>
       </header>
       <section className="profile-card">
         <ProfileForm profile={profile} />
         <div className="account-email">
           <Mail size={16} />
           <span>
-            <small>Email de acceso</small>
+            <small>{t("Email de acceso", "Sign-in email")}</small>
             <strong>{user.email}</strong>
           </span>
         </div>
@@ -59,7 +66,9 @@ export default async function ProfilePage() {
         initialTheme={profile.theme_preference}
         initialAccent={profile.accent_color}
       />
+      <LanguageSettings />
       <DeviceNotificationSettings />
+      <LegalDisclosure />
     </div>
   );
 }

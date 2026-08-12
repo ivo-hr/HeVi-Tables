@@ -5,10 +5,16 @@ import { Bell, CheckCheck, CircleUserRound, FilePlus2, Flag, ListPlus } from "lu
 import Link from "next/link";
 
 import { markNotificationsReadAction } from "@/app/actions/notifications";
+import { useLanguage } from "@/components/language-provider";
 import {
   notificationHref,
   showDeviceNotification
 } from "@/lib/device-notifications";
+import {
+  EMPTY_NOTIFICATION_COPY,
+  EMPTY_NOTIFICATION_COPY_EN,
+  stableVariant
+} from "@/lib/presentation";
 import { createClient } from "@/lib/supabase/client";
 import type { Notification, NotificationKind } from "@/lib/types";
 
@@ -19,15 +25,6 @@ const icons: Record<NotificationKind, typeof Bell> = {
   table_closed: Flag
 };
 
-function notificationDate(value: string) {
-  return new Intl.DateTimeFormat("es-ES", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
-}
-
 export function NotificationMenu({
   userId,
   initialNotifications
@@ -35,6 +32,7 @@ export function NotificationMenu({
   userId: string;
   initialNotifications: Notification[];
 }) {
+  const { locale, t, date } = useLanguage();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState(initialNotifications);
   const [, startTransition] = useTransition();
@@ -42,6 +40,9 @@ export function NotificationMenu({
     () => notifications.filter((notification) => !notification.read_at).length,
     [notifications]
   );
+  const emptyCopies: readonly { title: string; body: string }[] =
+    locale === "en" ? EMPTY_NOTIFICATION_COPY_EN : EMPTY_NOTIFICATION_COPY;
+  const emptyCopy = stableVariant(`empty-notifications:${userId}`, emptyCopies);
 
   useEffect(() => {
     setNotifications(initialNotifications);
@@ -93,7 +94,7 @@ export function NotificationMenu({
       <button
         type="button"
         className="notification-trigger"
-        aria-label={unread ? `${unread} notificaciones sin leer` : "Notificaciones"}
+        aria-label={unread ? `${unread} ${t("notificaciones sin leer", "unread notifications")}` : t("Notificaciones", "Notifications")}
         aria-expanded={open}
         onClick={() => {
           setOpen((current) => !current);
@@ -107,10 +108,10 @@ export function NotificationMenu({
         <div className="notification-panel">
           <header>
             <div>
-              <span className="eyebrow">Actividad</span>
-              <h2>Notificaciones</h2>
+              <span className="eyebrow">{t("Actividad", "Activity")}</span>
+              <h2>{t("Notificaciones", "Notifications")}</h2>
             </div>
-            <CheckCheck size={18} aria-label="Todo leído" />
+            <CheckCheck size={18} aria-label={t("Todo leído", "All read")} />
           </header>
           {notifications.length ? (
             <div className="notification-list">
@@ -129,7 +130,7 @@ export function NotificationMenu({
                     <span>
                       <strong>{notification.title}</strong>
                       <p>{notification.body}</p>
-                      <small>{notificationDate(notification.created_at)}</small>
+                      <small>{date(notification.created_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small>
                     </span>
                   </Link>
                 );
@@ -138,8 +139,8 @@ export function NotificationMenu({
           ) : (
             <div className="notification-empty">
               <Bell size={25} />
-              <strong>Nada nuevo</strong>
-              <p>Por una vez, nadie ha tocado nada.</p>
+              <strong>{emptyCopy.title}</strong>
+              <p>{emptyCopy.body}</p>
             </div>
           )}
         </div>

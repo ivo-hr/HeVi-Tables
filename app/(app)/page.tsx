@@ -4,9 +4,11 @@ import { ConfigurationNeeded } from "@/components/configuration-needed";
 import { GroupCard } from "@/components/group-card";
 import { GroupForm } from "@/components/group-forms";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { getServerTranslator } from "@/lib/i18n-server";
 import { requireUser } from "@/lib/supabase/server";
 
 export default async function GroupsHome() {
+  const { t } = await getServerTranslator();
   if (!isSupabaseConfigured()) {
     return <ConfigurationNeeded />;
   }
@@ -54,19 +56,21 @@ export default async function GroupsHome() {
         <div>
           <span className="eyebrow">
             <Sparkles size={14} />
-            Tus grupos
+            {t("Tus grupos", "Your groups")}
           </span>
           <h1>
-            Organiza el caos.
+            {t("Organiza el caos.", "Organise the chaos.")}
             <br />
-            Luego, <em>los datos.</em>
+            {t("Luego,", "Then,")} <em>{t("los datos.", "the data.")}</em>
           </h1>
           <p>
-            Cada grupo mantiene sus tablas, su ránking y sus decisiones
-            cuestionables en un mismo sitio.
+            {t(
+              "Cada grupo mantiene sus tablas, su ránking y sus decisiones cuestionables en un mismo sitio.",
+              "Each group keeps its tables, leaderboard and questionable decisions in one place."
+            )}
           </p>
           <a href="#mis-grupos" className="hero-text-link">
-            Ver mis grupos <ArrowDown size={17} />
+            {t("Ver mis grupos", "View my groups")} <ArrowDown size={17} />
           </a>
         </div>
         <div className="groups-hero-orbit" aria-hidden="true">
@@ -82,15 +86,15 @@ export default async function GroupsHome() {
       <section className="my-groups-section" id="mis-grupos">
         <div className="section-title-row">
           <div>
-            <span className="eyebrow">Tus espacios</span>
-            <h2>Mis grupos</h2>
+            <span className="eyebrow">{t("Tus espacios", "Your spaces")}</span>
+            <h2>{t("Mis grupos", "My groups")}</h2>
           </div>
-          {groups.length ? <span className="open-count">{groups.length} activos</span> : null}
+          {groups.length ? <span className="open-count">{groups.length} {t("activos", "active")}</span> : null}
         </div>
 
         {hasLoadError ? (
           <p className="form-message error">
-            No se pudieron cargar los grupos. Comprueba que la nueva migración esté aplicada.
+            {t("No se pudieron cargar los grupos. Comprueba que la nueva migración esté aplicada.", "Groups could not be loaded. Check that the latest migration has been applied.")}
           </p>
         ) : groups.length ? (
           <div className="groups-grid">
@@ -112,13 +116,13 @@ export default async function GroupsHome() {
         ) : (
           <div className="empty-groups">
             <UsersRound size={36} />
-            <h2>Aquí aparecerán tus grupos</h2>
-            <p>Crea uno nuevo o entra con el código que te pase un amigo.</p>
+            <h2>{t("Aquí aparecerán tus grupos", "Your groups will appear here")}</h2>
+            <p>{t("Crea uno nuevo o entra con el código que te pase un amigo.", "Create one or join with a code shared by a friend.")}</p>
           </div>
         )}
       </section>
 
-      <section className="group-actions-grid" aria-label="Añadir un grupo">
+      <section className="group-actions-grid" aria-label={t("Añadir un grupo", "Add a group")}>
         <GroupForm mode="create" />
         <GroupForm mode="join" />
       </section>

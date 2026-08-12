@@ -4,10 +4,11 @@ import { useRef, useState, useTransition } from "react";
 import { ArrowRight, CircleHelp, LoaderCircle } from "lucide-react";
 
 import { createTableAction } from "@/app/actions/tables";
+import { useLanguage } from "@/components/language-provider";
 import {
-  DrawingCanvas,
-  type DrawingCanvasHandle
-} from "@/components/drawing-canvas";
+  TableCoverEditor,
+  type TableCoverEditorHandle
+} from "@/components/table-cover-editor";
 import { SelectField } from "@/components/select-field";
 import type {
   ActionResult,
@@ -39,7 +40,13 @@ const numberOrderOptions = [
 ] as const;
 
 export function CreateTableForm({ groupId }: { groupId: string }) {
-  const canvasRef = useRef<DrawingCanvasHandle>(null);
+  const { t } = useLanguage();
+  const localizedSystemDescriptions: Record<PointSystem, string> = {
+    WtA: t("Una única fila gana todos los puntos.", "A single entry wins all the points."),
+    Pod: t("El primero recibe el máximo; cada posición resta 2.", "First place gets the maximum; each position subtracts 2."),
+    EC: t("Asigna manualmente los puntos de cada fila.", "Assign points to each entry manually.")
+  };
+  const coverRef = useRef<TableCoverEditorHandle>(null);
   const [system, setSystem] = useState<PointSystem>("WtA");
   const [infoFormat, setInfoFormat] = useState<EntryInfoFormat>("text");
   const [numberOrder, setNumberOrder] = useState<NumberSortOrder>("desc");
@@ -54,17 +61,17 @@ export function CreateTableForm({ groupId }: { groupId: string }) {
         const form = event.currentTarget;
         startTransition(async () => {
           try {
-            const blob = await canvasRef.current?.exportPng();
-            if (!blob) {
-              setState({ ok: false, message: "No se pudo preparar el dibujo." });
+            const cover = await coverRef.current?.exportCover();
+            if (!cover) {
+              setState({ ok: false, message: t("Dibuja o elige una foto de portada.", "Draw or choose a cover photo.") });
               return;
             }
             const formData = new FormData(form);
-            formData.set("design", new File([blob], "portada.png", { type: "image/png" }));
+            formData.set("design", cover);
             const result = await createTableAction(formData);
             setState(result);
           } catch {
-            setState({ ok: false, message: "No se pudo crear la tabla." });
+            setState({ ok: false, message: t("No se pudo crear la tabla.", "The table could not be created.") });
           }
         });
       }}
@@ -74,27 +81,27 @@ export function CreateTableForm({ groupId }: { groupId: string }) {
         <div className="section-heading">
           <span className="step-number">01</span>
           <div>
-            <h2>Dale una portada</h2>
-            <p>Dibuja una portada. Los trazos se suavizan automáticamente.</p>
+            <h2>{t("Dale una portada", "Give it a cover")}</h2>
+            <p>{t("Dibújala o sube una foto. Nosotros nos ocupamos de prepararla.", "Draw one or upload a photo. We will prepare it.")}</p>
           </div>
         </div>
-        <DrawingCanvas ref={canvasRef} />
+        <TableCoverEditor ref={coverRef} required />
       </section>
 
       <section className="form-section config-section">
         <div className="section-heading">
           <span className="step-number">02</span>
           <div>
-            <h2>Define las reglas</h2>
-            <p>Podrás añadir participantes en la siguiente pantalla.</p>
+            <h2>{t("Define las reglas", "Set the rules")}</h2>
+            <p>{t("Podrás añadir participantes en la siguiente pantalla.", "You can add participants on the next screen.")}</p>
           </div>
         </div>
         <label className="field">
-          <span>Nombre de la tabla</span>
+          <span>{t("Nombre de la tabla", "Table name")}</span>
           <input
             name="name"
             maxLength={80}
-            placeholder="Predicciones del viaje"
+            placeholder={t("Predicciones del viaje", "Trip predictions")}
             autoComplete="off"
             required
             aria-describedby={state.fieldErrors?.name ? "name-error" : undefined}
@@ -106,59 +113,67 @@ export function CreateTableForm({ groupId }: { groupId: string }) {
           ) : null}
         </label>
         <label className="field">
-          <span>Descripción breve</span>
+          <span>{t("Descripción breve", "Short description")}</span>
           <textarea
             name="description"
             maxLength={280}
-            placeholder="Qué se decide, qué cuenta y por qué acabaréis discutiendo."
+            placeholder={t("Qué se decide, qué cuenta y por qué acabaréis discutiendo.", "What is being decided, what counts and why everyone will end up arguing.")}
             rows={3}
           />
-          <small className="field-help">Máximo 280 caracteres.</small>
+          <small className="field-help">{t("Máximo 280 caracteres.", "Maximum 280 characters.")}</small>
         </label>
         <div className="field">
-          <span>Sistema de puntos</span>
+          <span>{t("Sistema de puntos", "Scoring system")}</span>
           <SelectField
             name="pointSystem"
             value={system}
-            options={pointSystemOptions}
+            options={pointSystemOptions.map((option) => ({
+              ...option,
+              label: option.value === "Pod" ? t("Podio", "Podium") : option.value === "EC" ? t("Todo cuenta", "Everything counts") : option.label,
+              description: localizedSystemDescriptions[option.value]
+            }))}
             onValueChange={(value) => setSystem(value as PointSystem)}
-            ariaLabel="Sistema de puntos"
+            ariaLabel={t("Sistema de puntos", "Scoring system")}
           />
           <small className="field-help">
             <CircleHelp size={14} />
-            {systemDescriptions[system]}
+            {localizedSystemDescriptions[system]}
           </small>
         </div>
         <div className="field">
-          <span>Información de cada registro</span>
+          <span>{t("Información de cada registro", "Information for each entry")}</span>
           <SelectField
             name="infoFormat"
             value={infoFormat}
-            options={infoFormatOptions}
+            options={infoFormatOptions.map((option) => ({ ...option, label: option.value === "text" ? t("Texto", "Text") : t("Número", "Number"), description: option.value === "text" ? t("Una nota breve por registro.", "A short note for each entry.") : t("Una cantidad comparable por registro.", "A comparable quantity for each entry.") }))}
             onValueChange={(value) => setInfoFormat(value as EntryInfoFormat)}
-            ariaLabel="Formato de información"
+            ariaLabel={t("Formato de información", "Information format")}
           />
           <small className="field-help">
             <CircleHelp size={14} />
-            El formato queda fijado al añadir el primer registro.
+            {t("El formato queda fijado al añadir el primer registro.", "The format is locked after the first entry is added.")}
           </small>
         </div>
         {infoFormat === "number" ? (
           <div className="field">
-            <span>Orden de la cantidad</span>
+            <span>{t("Orden de la cantidad", "Quantity order")}</span>
             <SelectField
               name="numberSortOrder"
               value={numberOrder}
-              options={numberOrderOptions}
+              options={numberOrderOptions.map((option) => ({
+                ...option,
+                label: option.value === "desc" ? t("Descendente", "Descending") : t("Ascendente", "Ascending"),
+                description: option.value === "desc" ? t("100 va antes que 10.", "100 comes before 10.") : t("10 va antes que 100.", "10 comes before 100.")
+              }))}
               onValueChange={(value) => setNumberOrder(value as NumberSortOrder)}
-              ariaLabel="Orden numérico"
+              ariaLabel={t("Orden numérico", "Numeric order")}
             />
           </div>
         ) : (
           <input type="hidden" name="numberSortOrder" value={numberOrder} />
         )}
         <label className="field">
-          <span>Puntos máximos</span>
+          <span>{t("Puntos máximos", "Maximum points")}</span>
           <div className="number-input">
             <input
               name="maxPoint"
@@ -176,11 +191,11 @@ export function CreateTableForm({ groupId }: { groupId: string }) {
           ) : null}
         </label>
         <label className="field">
-          <span>Fecha prevista de cierre</span>
+          <span>{t("Fecha prevista de cierre", "Planned closing date")}</span>
           <input name="scheduledCloseDate" type="date" />
           <small className="field-help">
             <CircleHelp size={14} />
-            Es informativa y podrás cambiarla después.
+            {t("Es informativa y podrás cambiarla después.", "It is informational and can be changed later.")}
           </small>
         </label>
         {state.message ? (
@@ -190,7 +205,7 @@ export function CreateTableForm({ groupId }: { groupId: string }) {
         ) : null}
         <button className="primary-button create-submit" disabled={pending}>
           {pending ? <LoaderCircle className="spin" size={19} /> : null}
-          {pending ? "Creando…" : "Crear tabla"}
+          {pending ? t("Creando…", "Creating…") : t("Crear tabla", "Create table")}
           {!pending ? <ArrowRight size={19} /> : null}
         </button>
       </section>

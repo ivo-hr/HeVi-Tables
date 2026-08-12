@@ -5,6 +5,7 @@ import { Check, Copy, LoaderCircle, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { rotateInviteCodeAction } from "@/app/actions/groups";
+import { useLanguage } from "@/components/language-provider";
 
 type InviteCodeProps = {
   code: string;
@@ -13,6 +14,7 @@ type InviteCodeProps = {
 };
 
 export function InviteCode({ code, groupId, canRotate }: InviteCodeProps) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -21,9 +23,9 @@ export function InviteCode({ code, groupId, canRotate }: InviteCodeProps) {
   return (
     <aside className="invite-card">
       <div>
-        <span className="eyebrow">Comparte el acceso</span>
-        <h2>Código del grupo</h2>
-        <p>Cualquiera que tenga este código puede entrar.</p>
+        <span className="eyebrow">{t("Comparte el acceso", "Share access")}</span>
+        <h2>{t("Código del grupo", "Group code")}</h2>
+        <p>{t("Cualquiera que tenga este código puede entrar.", "Anyone with this code can join.")}</p>
       </div>
       <div className="invite-code-row">
         <code>{code}</code>
@@ -37,12 +39,12 @@ export function InviteCode({ code, groupId, canRotate }: InviteCodeProps) {
               setMessage(undefined);
               window.setTimeout(() => setCopied(false), 1800);
             } catch {
-              setMessage("No se pudo copiar. Mantén pulsado el código para seleccionarlo.");
+              setMessage(t("No se pudo copiar. Mantén pulsado el código para seleccionarlo.", "Could not copy it. Press and hold the code to select it."));
             }
           }}
         >
           {copied ? <Check size={17} /> : <Copy size={17} />}
-          {copied ? "Copiado" : "Copiar"}
+          {copied ? t("Copiado", "Copied") : t("Copiar", "Copy")}
         </button>
       </div>
       {canRotate ? (
@@ -61,7 +63,7 @@ export function InviteCode({ code, groupId, canRotate }: InviteCodeProps) {
           }}
         >
           {pending ? <LoaderCircle className="spin" size={14} /> : <RefreshCw size={14} />}
-          Renovar código
+          {t("Renovar código", "Rotate code")}
         </button>
       ) : null}
       {message ? <small className="invite-feedback">{message}</small> : null}

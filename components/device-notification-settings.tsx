@@ -7,6 +7,7 @@ import {
   deletePushSubscriptionAction,
   savePushSubscriptionAction
 } from "@/app/actions/push";
+import { useLanguage } from "@/components/language-provider";
 import {
   DEVICE_NOTIFICATIONS_KEY,
   getServiceWorkerRegistration,
@@ -14,11 +15,18 @@ import {
   supportsDeviceNotifications,
   urlBase64ToUint8Array
 } from "@/lib/device-notifications";
+import {
+  stableVariant,
+  SUCCESS_COPY,
+  TEST_NOTIFICATION_COPY,
+  TEST_NOTIFICATION_COPY_EN
+} from "@/lib/presentation";
 import type { ActionResult } from "@/lib/types";
 
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
 export function DeviceNotificationSettings() {
+  const { locale, t } = useLanguage();
   const [supported, setSupported] = useState<boolean | null>(null);
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [enabled, setEnabled] = useState(false);
@@ -53,8 +61,8 @@ export function DeviceNotificationSettings() {
             ok: false,
             message:
               nextPermission === "denied"
-                ? "El navegador las ha bloqueado. Tendrás que habilitarlas desde sus ajustes."
-                : "No se concedió el permiso de notificaciones."
+                ? t("El navegador las ha bloqueado. Tendrás que habilitarlas desde sus ajustes.", "The browser has blocked notifications. Enable them in its settings.")
+                : t("No se concedió el permiso de notificaciones.", "Notification permission was not granted.")
           });
           return;
         }
@@ -72,7 +80,7 @@ export function DeviceNotificationSettings() {
             }));
           const serialized = subscription.toJSON();
           if (!serialized.endpoint || !serialized.keys?.p256dh || !serialized.keys.auth) {
-            throw new Error("Suscripción incompleta.");
+            throw new Error(t("Suscripción incompleta.", "Incomplete subscription."));
           }
           const formData = new FormData();
           formData.set("endpoint", serialized.endpoint);
@@ -86,15 +94,15 @@ export function DeviceNotificationSettings() {
         } else {
           setState({
             ok: true,
-            message: vapidPublicKey
-              ? "Avisos activados mientras la app esté abierta o en segundo plano."
-              : "Avisos del dispositivo activados. Falta configurar Web Push para recibirlos con la app cerrada."
+            message: locale === "en"
+              ? "Notifications enabled. Peace is no longer guaranteed."
+              : stableVariant(crypto.randomUUID(), SUCCESS_COPY.pushEnabled)
           });
         }
       } catch (error) {
         setState({
           ok: false,
-          message: error instanceof Error ? error.message : "No se pudieron activar."
+          message: error instanceof Error ? error.message : t("No se pudieron activar.", "Notifications could not be enabled.")
         });
       }
     });
@@ -105,18 +113,27 @@ export function DeviceNotificationSettings() {
       try {
         const registration = await getServiceWorkerRegistration();
         const subscription = await registration.pushManager?.getSubscription();
+        let result: ActionResult | null = null;
         if (subscription) {
           const formData = new FormData();
           formData.set("endpoint", subscription.endpoint);
-          await deletePushSubscriptionAction(formData);
+          result = await deletePushSubscriptionAction(formData);
+          if (!result.ok) throw new Error(result.message);
           await subscription.unsubscribe();
         }
         localStorage.removeItem(DEVICE_NOTIFICATIONS_KEY);
         setEnabled(false);
         setBackgroundReady(false);
-        setState({ ok: true, message: "Notificaciones desactivadas en este dispositivo." });
+        setState(
+          result ?? {
+            ok: true,
+            message: locale === "en"
+              ? "Notifications disabled. A little peace has been restored."
+              : stableVariant(crypto.randomUUID(), SUCCESS_COPY.pushDisabled)
+          }
+        );
       } catch {
-        setState({ ok: false, message: "No se pudieron desactivar del todo." });
+        setState({ ok: false, message: t("No se pudieron desactivar del todo.", "Notifications could not be fully disabled.") });
       }
     });
   };
@@ -128,14 +145,14 @@ export function DeviceNotificationSettings() {
           <BellRing size={19} />
         </span>
         <div>
-          <span className="eyebrow">Este dispositivo</span>
-          <h2>Avisos donde estés mirando</h2>
-          <p>Usa las notificaciones del sistema en este navegador o webapp.</p>
+          <span className="eyebrow">{t("Este dispositivo", "This device")}</span>
+          <h2>{t("Avisos donde estés mirando", "Notifications where you are looking")}</h2>
+          <p>{t("Usa las notificaciones del sistema en este navegador o webapp.", "Use system notifications in this browser or installed web app.")}</p>
         </div>
       </div>
 
       {supported === false ? (
-        <p className="form-message error">Este navegador no admite notificaciones web.</p>
+        <p className="form-message error">{t("Este navegador no admite notificaciones web.", "This browser does not support web notifications.")}</p>
       ) : (
         <div className="device-notification-body">
           <div className="device-status">
@@ -144,14 +161,14 @@ export function DeviceNotificationSettings() {
               <strong>
                 {enabled
                   ? backgroundReady
-                    ? "Activadas, incluso con la app cerrada"
-                    : "Activadas mientras la app está conectada"
+                    ? t("Activadas, incluso con la app cerrada", "Enabled, even when the app is closed")
+                    : t("Activadas mientras la app está conectada", "Enabled while the app is connected")
                   : permission === "denied"
-                    ? "Bloqueadas por el navegador"
-                    : "Desactivadas"}
+                    ? t("Bloqueadas por el navegador", "Blocked by the browser")
+                    : t("Desactivadas", "Disabled")}
               </strong>
               <small>
-                En iPhone o iPad, instala primero la webapp en la pantalla de inicio.
+                {t("En iPhone o iPad, instala primero la webapp en la pantalla de inicio.", "On iPhone or iPad, first install the web app on your Home Screen.")}
               </small>
             </span>
           </div>
@@ -169,27 +186,30 @@ export function DeviceNotificationSettings() {
                   disabled={pending}
                   onClick={async () => {
                     const registration = await getServiceWorkerRegistration();
-                    await registration.showNotification("HeVi funciona", {
-                      body: "Este es el aviso de prueba. El siguiente ya puede ser una desgracia real.",
-                      icon: "/icons/192",
-                      badge: "/icons/192",
+                    const copies: readonly { title: string; body: string }[] =
+                      locale === "en" ? TEST_NOTIFICATION_COPY_EN : TEST_NOTIFICATION_COPY;
+                    const copy = stableVariant(crypto.randomUUID(), copies);
+                    await registration.showNotification(copy.title, {
+                      body: copy.body,
+                      icon: "/icons/icon-192.png",
+                      badge: "/icons/icon-192.png",
                       tag: "hevi-test",
                       data: { url: "/perfil" }
                     });
                   }}
                 >
                   <Send size={17} />
-                  Enviar prueba
+                  {t("Enviar prueba", "Send test")}
                 </button>
                 <button type="button" className="danger-button" disabled={pending} onClick={disable}>
                   {pending ? <LoaderCircle className="spin" size={17} /> : <Unplug size={17} />}
-                  Desactivar aquí
+                  {t("Desactivar aquí", "Disable here")}
                 </button>
               </>
             ) : (
               <button type="button" className="primary-button" disabled={pending || !supported} onClick={enable}>
                 {pending ? <LoaderCircle className="spin" size={17} /> : <BellRing size={17} />}
-                {pending ? "Activando…" : "Activar en este dispositivo"}
+                {pending ? t("Activando…", "Enabling…") : t("Activar en este dispositivo", "Enable on this device")}
               </button>
             )}
           </div>

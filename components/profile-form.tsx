@@ -1,36 +1,49 @@
 "use client";
 
-import { useActionState } from "react";
-import { Camera, Save } from "lucide-react";
+import { useState, useTransition } from "react";
+import { LoaderCircle, Save } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { updateProfileAction } from "@/app/actions/profile";
-import { Avatar } from "@/components/avatar";
+import { ImageUploadField } from "@/components/image-upload-field";
+import { useLanguage } from "@/components/language-provider";
 import { INITIAL_ACTION_RESULT, type Profile } from "@/lib/types";
 
 export function ProfileForm({ profile }: { profile: Profile }) {
-  const [state, action, pending] = useActionState(
-    updateProfileAction,
-    INITIAL_ACTION_RESULT
-  );
+  const { t } = useLanguage();
+  const router = useRouter();
+  const [state, setState] = useState(INITIAL_ACTION_RESULT);
+  const [avatar, setAvatar] = useState<File | null>(null);
+  const [pending, startTransition] = useTransition();
 
   return (
-    <form action={action} className="profile-form">
+    <form
+      className="profile-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        if (avatar) formData.set("avatar", avatar);
+        startTransition(async () => {
+          const result = await updateProfileAction(INITIAL_ACTION_RESULT, formData);
+          setState(result);
+          if (result.ok) router.refresh();
+        });
+      }}
+    >
       <div className="profile-avatar-block">
-        <Avatar name={profile.username} src={profile.avatar_url} size="lg" />
-        <label className="avatar-upload">
-          <Camera size={17} />
-          Cambiar foto
-          <input
-            name="avatar"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-          />
-        </label>
-        <small>PNG, JPG o WebP. Máximo 2 MB.</small>
+        <ImageUploadField
+          initialUrl={profile.avatar_url}
+          placeholder={profile.username.slice(0, 2).toUpperCase()}
+          label={t("Elegir foto", "Choose photo")}
+          editorEyebrow={t("Foto de perfil", "Profile photo")}
+          editorTitle={t("Decide qué entra en tu avatar", "Choose what appears in your avatar")}
+          className="profile-image-upload"
+          onFileChange={setAvatar}
+        />
       </div>
       <div className="profile-fields">
         <label className="field">
-          <span>Nombre visible</span>
+          <span>{t("Nombre visible", "Display name")}</span>
           <input
             name="username"
             defaultValue={profile.username}
@@ -47,8 +60,8 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           </p>
         ) : null}
         <button className="primary-button" disabled={pending}>
-          <Save size={18} />
-          {pending ? "Guardando…" : "Guardar perfil"}
+          {pending ? <LoaderCircle className="spin" size={18} /> : <Save size={18} />}
+          {pending ? t("Guardando…", "Saving…") : t("Guardar perfil", "Save profile")}
         </button>
       </div>
     </form>

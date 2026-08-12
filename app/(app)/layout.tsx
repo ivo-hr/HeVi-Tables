@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import { getServerTranslator } from "@/lib/i18n-server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { requireUser } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/types";
@@ -6,6 +7,7 @@ import type { Profile } from "@/lib/types";
 export default async function ProtectedLayout({
   children
 }: Readonly<{ children: React.ReactNode }>) {
+  const { t } = await getServerTranslator();
   if (!isSupabaseConfigured()) {
     return children;
   }
@@ -26,7 +28,7 @@ export default async function ProtectedLayout({
     user.user_metadata.full_name ??
     user.user_metadata.username ??
     user.email?.split("@")[0] ??
-    "Amigo";
+    t("Amigo", "Friend");
   const profile: Profile =
     data ??
     ({
@@ -35,6 +37,7 @@ export default async function ProtectedLayout({
       avatar_url: null,
       theme_preference: "system",
       accent_color: "emerald",
+      locale: "es",
       created_at: user.created_at,
       updated_at: user.updated_at ?? user.created_at
     } satisfies Profile);

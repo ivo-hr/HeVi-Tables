@@ -40,6 +40,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/login") || pathname.startsWith("/auth/");
   const isPublicRoute =
     isAuthRoute ||
+    pathname === "/legal" ||
     pathname === "/offline" ||
     pathname === "/api/health" ||
     pathname.startsWith("/icons/");

@@ -1,20 +1,24 @@
 import { WifiOff } from "lucide-react";
 import Link from "next/link";
+import { getServerTranslator } from "@/lib/i18n-server";
 
-export default function OfflinePage() {
+export default async function OfflinePage() {
+  const { t } = await getServerTranslator();
   return (
     <main className="centered-shell">
       <section className="setup-card offline-card">
         <span className="setup-mark">
           <WifiOff size={34} />
         </span>
-        <h1>Te has quedado sin conexión</h1>
+        <h1>{t("Te has quedado sin conexión", "You are offline")}</h1>
         <p>
-          El ránking necesita internet para asegurar que siempre muestra los
-          últimos puntos.
+          {t(
+            "HeVi necesita internet para mostrar datos actualizados y guardar cambios.",
+            "HeVi needs an internet connection to show current data and save changes."
+          )}
         </p>
         <Link href="/" className="primary-button">
-          Volver a intentar
+          {t("Volver a intentar", "Try again")}
         </Link>
       </section>
     </main>

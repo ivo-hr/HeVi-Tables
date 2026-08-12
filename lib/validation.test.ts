@@ -10,9 +10,17 @@ import {
 
 describe("group validation", () => {
   it("trims a valid group name", () => {
-    expect(groupSchema.parse({ name: "  Los del viaje  " })).toEqual({
-      name: "Los del viaje"
+    expect(groupSchema.parse({ name: "  Los del viaje  ", mark: "lv" })).toEqual({
+      name: "Los del viaje",
+      mark: "LV"
     });
+  });
+
+  it("accepts up to three letters, symbols, or complete emoji", () => {
+    expect(groupSchema.safeParse({ name: "Viaje", mark: "V" }).success).toBe(true);
+    expect(groupSchema.safeParse({ name: "Viaje", mark: "V!" }).success).toBe(true);
+    expect(groupSchema.safeParse({ name: "Viaje", mark: "🇪🇸🏆V" }).success).toBe(true);
+    expect(groupSchema.safeParse({ name: "Viaje", mark: "🔥🎯🏆🚀" }).success).toBe(false);
   });
 
   it("normalizes invite codes copied with spaces or dashes", () => {

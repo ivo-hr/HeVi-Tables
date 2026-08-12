@@ -1,15 +1,24 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
   Check,
   Crown,
+  Eye,
+  FileText,
+  Hash,
+  Images,
   LoaderCircle,
   LockKeyhole,
+  Pencil,
   Plus,
   Save,
   Trash2,
-  Trophy
+  Trophy,
+  Users,
+  X
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -20,11 +29,13 @@ import {
   updateRowAction
 } from "@/app/actions/tables";
 import { Avatar } from "@/components/avatar";
+import { useLanguage } from "@/components/language-provider";
 import {
   EvidencePicker,
   type EvidencePreview
 } from "@/components/evidence-picker";
 import { formatPoints } from "@/lib/format";
+import { stableToneClass } from "@/lib/presentation";
 import { calculateProvisionalPoints, sortByNumericValue } from "@/lib/rules";
 import type {
   ActionResult,
@@ -47,6 +58,7 @@ type RowFormProps = {
   profiles: Profile[];
   row?: TableRow;
   onDone?: () => void;
+  onCancel?: () => void;
   evidenceUrls: Record<string, string>;
 };
 
@@ -59,9 +71,10 @@ function Participants({
   selected: string[];
   disabled?: boolean;
 }) {
+  const { t } = useLanguage();
   return (
     <fieldset className="participants" disabled={disabled}>
-      <legend>Participantes</legend>
+      <legend>{t("Participantes", "Participants")}</legend>
       <div className="participant-grid">
         {profiles.map((profile) => (
           <label className="participant-option" key={profile.id}>
@@ -84,10 +97,11 @@ function Participants({
 }
 
 function RuleInput({ table, row }: { table: Table; row?: TableRow }) {
+  const { t } = useLanguage();
   if (table.point_system === "EC") {
     return (
       <label className="field compact-field">
-        <span>Puntos que recibe</span>
+        <span>{t("Puntos que recibe", "Points awarded")}</span>
         <div className="number-input">
           <input
             name="points_receivable"
@@ -109,8 +123,8 @@ function RuleInput({ table, row }: { table: Table; row?: TableRow }) {
       <div className="automatic-rule-note">
         <Crown size={18} />
         <span>
-          <strong>Orden automático</strong>
-          {table.number_sort_order === "asc" ? "Gana la cantidad menor." : "Gana la cantidad mayor."}
+          <strong>{t("Orden automático", "Automatic order")}</strong>
+          {table.number_sort_order === "asc" ? t("Gana la cantidad menor.", "The lowest quantity wins.") : t("Gana la cantidad mayor.", "The highest quantity wins.")}
         </span>
       </div>
     );
@@ -127,7 +141,7 @@ function RuleInput({ table, row }: { table: Table; row?: TableRow }) {
         />
         <span>
           <Crown size={18} />
-          Marcar como ganadora
+          {t("Marcar como ganadora", "Mark as winner")}
         </span>
       </label>
     );
@@ -135,7 +149,7 @@ function RuleInput({ table, row }: { table: Table; row?: TableRow }) {
 
   return (
     <label className="field compact-field">
-      <span>Posición final</span>
+      <span>{t("Posición final", "Final position")}</span>
       <div className="number-input">
         <input
           name="position"
@@ -153,7 +167,15 @@ function RuleInput({ table, row }: { table: Table; row?: TableRow }) {
   );
 }
 
-function EditableRowForm({ table, profiles, row, onDone, evidenceUrls }: RowFormProps) {
+function EditableRowForm({
+  table,
+  profiles,
+  row,
+  onDone,
+  onCancel,
+  evidenceUrls
+}: RowFormProps) {
+  const { t } = useLanguage();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<ActionResult>({ ok: false });
@@ -195,7 +217,7 @@ function EditableRowForm({ table, profiles, row, onDone, evidenceUrls }: RowForm
       <div className="row-fields">
         {table.info_format === "number" ? (
           <label className="field">
-            <span>Cantidad</span>
+            <span>{t("Cantidad", "Quantity")}</span>
             <input
               name="numeric_value"
               type="number"
@@ -207,13 +229,13 @@ function EditableRowForm({ table, profiles, row, onDone, evidenceUrls }: RowForm
           </label>
         ) : (
           <label className="field">
-            <span>Texto</span>
+            <span>{t("Texto", "Text")}</span>
             <textarea
               name="notes"
               maxLength={500}
               rows={2}
               defaultValue={row?.notes ?? ""}
-              placeholder="Qué apostáis, detalles, desempates…"
+              placeholder={t("Qué apostáis, detalles, desempates…", "What you predict, details, tie-breakers…")}
             />
           </label>
         )}
@@ -238,7 +260,7 @@ function EditableRowForm({ table, profiles, row, onDone, evidenceUrls }: RowForm
             className="danger-button"
             disabled={pending}
             onClick={() => {
-              if (!window.confirm("¿Eliminar esta fila?")) return;
+              if (!window.confirm(t("¿Eliminar esta fila?", "Delete this entry?"))) return;
               const formData = new FormData();
               formData.set("row_id", row.id);
               formData.set("table_id", table.id);
@@ -250,7 +272,12 @@ function EditableRowForm({ table, profiles, row, onDone, evidenceUrls }: RowForm
             }}
           >
             <Trash2 size={17} />
-            Eliminar
+            {t("Eliminar", "Delete")}
+          </button>
+        ) : null}
+        {row && onCancel ? (
+          <button type="button" className="ghost-button" disabled={pending} onClick={onCancel}>
+            {t("Cancelar", "Cancel")}
           </button>
         ) : null}
         <button className="secondary-button" disabled={pending}>
@@ -261,30 +288,21 @@ function EditableRowForm({ table, profiles, row, onDone, evidenceUrls }: RowForm
           ) : (
             <Save size={17} />
           )}
-          {pending ? "Guardando…" : isNew ? "Añadir fila" : "Guardar cambios"}
+          {pending ? t("Guardando…", "Saving…") : isNew ? t("Añadir fila", "Add entry") : t("Guardar cambios", "Save changes")}
         </button>
       </div>
     </form>
   );
 }
 
-function ReadonlyRow({
-  table,
-  row,
-  profiles,
-  index,
-  evidence
-}: {
-  table: Table;
-  row: TableRow;
-  profiles: Profile[];
-  index: number;
-  evidence: EvidencePreview[];
-}) {
-  const rowProfiles = row.user_ids
+function rowProfilesFor(row: TableRow, profiles: Profile[]) {
+  return row.user_ids
     .map((id) => profiles.find((profile) => profile.id === id))
     .filter((profile): profile is Profile => Boolean(profile));
-  const points = table.closed
+}
+
+function pointsForRow(table: Table, row: TableRow, index: number) {
+  return table.closed
     ? row.points_won
     : calculateProvisionalPoints(
         table.point_system,
@@ -297,58 +315,284 @@ function ReadonlyRow({
           ? index + 1
           : undefined
       );
-
-  return (
-    <article className="readonly-row">
-      <span className="row-index">{String(index + 1).padStart(2, "0")}</span>
-      <div className="readonly-main">
-        <div className="avatar-stack">
-          {rowProfiles.map((profile) => (
-            <Avatar
-              key={profile.id}
-              name={profile.username}
-              src={profile.avatar_url}
-              size="sm"
-            />
-          ))}
-        </div>
-        <div>
-          <strong>{rowProfiles.map((profile) => profile.username).join(" + ")}</strong>
-          <p>
-            {table.info_format === "number"
-              ? formatNumericValue(row.numeric_value)
-              : row.notes || "Sin texto"}
-          </p>
-        </div>
-      </div>
-      <div className="row-result">
-        <strong>{formatPoints(points)}</strong>
-        <span>{table.closed ? "puntos" : "puntos provisionales"}</span>
-      </div>
-      {evidence.length ? <EvidenceGallery evidence={evidence} /> : null}
-    </article>
-  );
 }
 
-function formatNumericValue(value: number | null) {
-  return value === null
-    ? "Sin cantidad"
-    : new Intl.NumberFormat("es-ES", { maximumFractionDigits: 6 }).format(value);
-}
+function EvidenceLightbox({
+  evidence,
+  initialIndex,
+  onClose
+}: {
+  evidence: EvidencePreview[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const { t } = useLanguage();
+  const [index, setIndex] = useState(initialIndex);
+  const active = evidence[index];
 
-function EvidenceGallery({ evidence }: { evidence: EvidencePreview[] }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key === "ArrowLeft") {
+        setIndex((current) => (current - 1 + evidence.length) % evidence.length);
+      }
+      if (event.key === "ArrowRight") {
+        setIndex((current) => (current + 1) % evidence.length);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [evidence.length, onClose]);
+
   return (
-    <div className="readonly-evidence" aria-label="Evidencias del registro">
-      {evidence.map((item, index) => (
-        <a href={item.url} target="_blank" rel="noreferrer" key={item.path}>
-          <img src={item.url} alt={`Evidencia ${index + 1}`} />
-        </a>
-      ))}
+    <div className="evidence-lightbox-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="evidence-lightbox"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${t("Evidencia", "Evidence")} ${index + 1} ${t("de", "of")} ${evidence.length}`}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header>
+          <span>
+            <Images size={17} />
+            {t("Evidencia", "Evidence")} {index + 1} {t("de", "of")} {evidence.length}
+          </span>
+          <button type="button" onClick={onClose} aria-label={t("Cerrar imagen", "Close image")}>
+            <X size={20} />
+          </button>
+        </header>
+        <div className="evidence-lightbox-image">
+          <img src={active.url} alt={`${t("Evidencia ampliada", "Enlarged evidence")} ${index + 1}`} />
+        </div>
+        {evidence.length > 1 ? (
+          <div className="evidence-lightbox-navigation">
+            <button
+              type="button"
+              onClick={() => setIndex((current) => (current - 1 + evidence.length) % evidence.length)}
+            >
+              <ChevronLeft size={18} /> {t("Anterior", "Previous")}
+            </button>
+            <div className="evidence-lightbox-dots" aria-hidden="true">
+              {evidence.map((item, dotIndex) => (
+                <span className={dotIndex === index ? "active" : undefined} key={item.path} />
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIndex((current) => (current + 1) % evidence.length)}
+            >
+              {t("Siguiente", "Next")} <ChevronRight size={18} />
+            </button>
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }
 
+function RowDetailView({
+  table,
+  row,
+  profiles,
+  index,
+  evidence,
+  onEdit
+}: {
+  table: Table;
+  row: TableRow;
+  profiles: Profile[];
+  index: number;
+  evidence: EvidencePreview[];
+  onEdit?: () => void;
+}) {
+  const { locale, t } = useLanguage();
+  const rowProfiles = rowProfilesFor(row, profiles);
+  const points = pointsForRow(table, row, index);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  return (
+    <div className="row-detail-view">
+      <div className="row-detail-grid">
+        <section className="row-detail-section row-detail-participants">
+          <span className="row-detail-label"><Users size={15} /> {t("Participantes", "Participants")}</span>
+          <div className="row-detail-member-grid">
+            {rowProfiles.map((profile) => (
+              <div className="row-detail-member" key={profile.id}>
+                <Avatar name={profile.username} src={profile.avatar_url} size="md" />
+                <strong>{profile.username}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="row-detail-section row-detail-information">
+          <span className="row-detail-label">
+            {table.info_format === "number" ? <Hash size={15} /> : <FileText size={15} />}
+            {table.info_format === "number" ? t("Cantidad", "Quantity") : t("Texto", "Text")}
+          </span>
+          <strong className={table.info_format === "number" ? "numeric" : undefined}>
+            {table.info_format === "number"
+              ? formatNumericValue(row.numeric_value, locale, t("Sin cantidad", "No quantity"))
+              : row.notes || t("Sin texto", "No text")}
+          </strong>
+          <small>{formatPoints(points, locale)} {table.closed ? t("puntos", "points") : t("puntos provisionales", "provisional points")}</small>
+        </section>
+      </div>
+      <section className="row-detail-section row-detail-evidence">
+        <span className="row-detail-label"><Images size={15} /> {t("Evidencias", "Evidence")}</span>
+        {evidence.length ? (
+          <div className="row-detail-gallery">
+            {evidence.map((item, evidenceIndex) => (
+              <button
+                type="button"
+                key={item.path}
+                onClick={() => setLightboxIndex(evidenceIndex)}
+                aria-label={`${t("Ampliar evidencia", "Enlarge evidence")} ${evidenceIndex + 1}`}
+              >
+                <img src={item.url} alt={`${t("Evidencia", "Evidence")} ${evidenceIndex + 1}`} />
+                <span><Eye size={16} /> {t("Ver grande", "View large")}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="row-detail-empty">{t("Este registro no tiene fotos.", "This entry has no photos.")}</p>
+        )}
+      </section>
+      {onEdit ? (
+        <div className="row-detail-actions">
+          <button type="button" className="secondary-button" onClick={onEdit}>
+            <Pencil size={17} />
+            {t("Editar registro", "Edit entry")}
+          </button>
+        </div>
+      ) : null}
+      {lightboxIndex !== null ? (
+        <EvidenceLightbox
+          evidence={evidence}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function formatNumericValue(value: number | null, locale: "es" | "en", empty: string) {
+  return value === null
+    ? empty
+    : new Intl.NumberFormat(locale === "en" ? "en-GB" : "es-ES", { maximumFractionDigits: 6 }).format(value);
+}
+
+function RowSummary({
+  table,
+  row,
+  profiles,
+  index,
+  evidence
+}: {
+  table: Table;
+  row: TableRow;
+  profiles: Profile[];
+  index: number;
+  evidence: EvidencePreview[];
+}) {
+  const { locale, t } = useLanguage();
+  const rowProfiles = rowProfilesFor(row, profiles);
+  const points = pointsForRow(table, row, index);
+  return (
+    <>
+      <span className="row-index">{String(index + 1).padStart(2, "0")}</span>
+      <span className="readonly-main">
+        <span className="avatar-stack">
+          {rowProfiles.map((profile) => (
+            <Avatar key={profile.id} name={profile.username} src={profile.avatar_url} size="sm" />
+          ))}
+        </span>
+        <span>
+          <strong>{rowProfiles.map((profile) => profile.username).join(" + ")}</strong>
+          <small>
+            {table.info_format === "number"
+              ? formatNumericValue(row.numeric_value, locale, t("Sin cantidad", "No quantity"))
+              : row.notes || t("Sin texto", "No text")}
+          </small>
+        </span>
+      </span>
+      <span className="row-evidence-strip" aria-label={`${evidence.length} ${t("evidencias", "evidence photos")}`}>
+        {evidence.map((item, evidenceIndex) => (
+          <span key={item.path}>
+            <img src={item.url} alt={`${t("Evidencia", "Evidence")} ${evidenceIndex + 1}`} />
+          </span>
+        ))}
+      </span>
+      <span className="editable-row-result">
+        <strong>{formatPoints(points, locale)}</strong>
+        <small>pts.</small>
+        <span className="edit-affordance"><Eye size={13} /> {t("Ver registro", "View entry")}</span>
+      </span>
+    </>
+  );
+}
+
+function RowRecord({
+  table,
+  row,
+  profiles,
+  index,
+  evidence,
+  editable,
+  evidenceUrls
+}: {
+  table: Table;
+  row: TableRow;
+  profiles: Profile[];
+  index: number;
+  evidence: EvidencePreview[];
+  editable: boolean;
+  evidenceUrls: Record<string, string>;
+}) {
+  const [editing, setEditing] = useState(false);
+
+  return (
+    <details
+      className={`editable-row row-record ${stableToneClass(`row:${row.id}`)}`}
+      onToggle={(event) => {
+        if (!event.currentTarget.open) setEditing(false);
+      }}
+    >
+      <summary>
+        <RowSummary
+          table={table}
+          row={row}
+          profiles={profiles}
+          index={index}
+          evidence={evidence}
+        />
+      </summary>
+      {editing ? (
+        <EditableRowForm
+          table={table}
+          profiles={profiles}
+          row={row}
+          evidenceUrls={evidenceUrls}
+          onDone={() => setEditing(false)}
+          onCancel={() => setEditing(false)}
+        />
+      ) : (
+        <RowDetailView
+          table={table}
+          row={row}
+          profiles={profiles}
+          index={index}
+          evidence={evidence}
+          onEdit={editable ? () => setEditing(true) : undefined}
+        />
+      )}
+    </details>
+  );
+}
+
 function CloseTableButton({ table }: { table: Table }) {
+  const { t } = useLanguage();
   const router = useRouter();
   const [state, setState] = useState<ActionResult>({ ok: false });
   const [pending, startTransition] = useTransition();
@@ -358,8 +602,8 @@ function CloseTableButton({ table }: { table: Table }) {
       <div>
         <Trophy size={25} />
         <span>
-          <strong>¿Resultados listos?</strong>
-          <small>El cierre calcula los puntos y no se puede deshacer.</small>
+          <strong>{t("¿Resultados listos?", "Results ready?")}</strong>
+          <small>{t("El cierre calcula los puntos y no se puede deshacer.", "Closing calculates the points and cannot be undone.")}</small>
         </span>
       </div>
       {state.message ? (
@@ -373,7 +617,7 @@ function CloseTableButton({ table }: { table: Table }) {
         onClick={() => {
           if (
             !window.confirm(
-              "Vas a cerrar la tabla definitivamente. ¿Continuar?"
+              t("Vas a cerrar la tabla definitivamente. ¿Continuar?", "You are about to close the table permanently. Continue?")
             )
           ) {
             return;
@@ -388,7 +632,7 @@ function CloseTableButton({ table }: { table: Table }) {
         }}
       >
         {pending ? <LoaderCircle className="spin" size={18} /> : <LockKeyhole size={18} />}
-        {pending ? "Cerrando…" : "Cerrar tabla"}
+        {pending ? t("Cerrando…", "Closing…") : t("Cerrar tabla", "Close table")}
       </button>
     </div>
   );
@@ -402,6 +646,7 @@ export function RowEditor({
   isCreator,
   evidenceUrls
 }: RowEditorProps) {
+  const { t } = useLanguage();
   const [showNew, setShowNew] = useState(rows.length === 0);
   const orderedRows =
     table.info_format === "number" && table.point_system !== "EC"
@@ -418,17 +663,19 @@ export function RowEditor({
       <section className="rows-list">
         {orderedRows.length ? (
           orderedRows.map((row, index) => (
-            <ReadonlyRow
+            <RowRecord
               key={row.id}
               table={table}
               row={row}
               profiles={profiles}
               index={index}
               evidence={evidenceFor(row)}
+              editable={false}
+              evidenceUrls={evidenceUrls}
             />
           ))
         ) : (
-          <div className="empty-inline">Todavía no hay filas en esta tabla.</div>
+          <div className="empty-inline">{t("Todavía no hay filas en esta tabla.", "There are no entries in this table yet.")}</div>
         )}
       </section>
     );
@@ -437,49 +684,16 @@ export function RowEditor({
   return (
     <div className="editor-stack">
       {orderedRows.map((row, index) => (
-        <details className="editable-row" key={row.id}>
-          <summary>
-            <span className="row-index">{String(index + 1).padStart(2, "0")}</span>
-            <span>
-              <strong>
-                {row.user_ids
-                  .map((id) => profiles.find((profile) => profile.id === id)?.username)
-                  .filter(Boolean)
-                  .join(" + ")}
-              </strong>
-              <small>
-                {table.info_format === "number"
-                  ? formatNumericValue(row.numeric_value)
-                  : row.notes || "Sin texto"}
-              </small>
-            </span>
-            <span className="editable-row-result">
-              <strong>
-                {formatPoints(
-                  calculateProvisionalPoints(
-                    table.point_system,
-                    table.max_point,
-                    {
-                      position: row.position,
-                      pointsReceivable: row.points_receivable
-                    },
-                    table.info_format === "number" && table.point_system !== "EC"
-                      ? index + 1
-                      : undefined
-                  )
-                )}
-              </strong>
-              <small>pts.</small>
-              <span className="edit-affordance">Editar</span>
-            </span>
-          </summary>
-          <EditableRowForm
-            table={table}
-            profiles={profiles}
-            row={row}
-            evidenceUrls={evidenceUrls}
-          />
-        </details>
+        <RowRecord
+          key={row.id}
+          table={table}
+          row={row}
+          profiles={profiles}
+          index={index}
+          evidence={evidenceFor(row)}
+          editable
+          evidenceUrls={evidenceUrls}
+        />
       ))}
       {showNew ? (
         <EditableRowForm
@@ -491,7 +705,7 @@ export function RowEditor({
       ) : (
         <button className="add-row-button" onClick={() => setShowNew(true)}>
           <Plus size={20} />
-          Añadir otra fila
+          {t("Añadir otra fila", "Add another entry")}
         </button>
       )}
       {isCreator ? <CloseTableButton table={table} /> : null}

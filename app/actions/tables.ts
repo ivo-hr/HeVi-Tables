@@ -4,9 +4,11 @@ import { randomUUID } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import sharp from "sharp";
 import { z } from "zod";
 
+import { prepareStoredImage } from "@/lib/image-processing";
+import { getServerTranslator } from "@/lib/i18n-server";
+import { stableVariant, SUCCESS_COPY, SUCCESS_COPY_EN } from "@/lib/presentation";
 import { requireUser } from "@/lib/supabase/server";
 import type { ActionResult, Table } from "@/lib/types";
 import {
@@ -16,10 +18,12 @@ import {
   tableSettingsSchema
 } from "@/lib/validation";
 
-const idSchema = z.uuid("Identificador no válido.");
+const idSchema = z.uuid();
+type Translator = (spanish: string, english: string) => string;
 
-function safeMessage(message: string, fallback: string) {
+function safeMessage(message: string, fallback: string, useFallback = false) {
   if (
+    useFallback ||
     message.includes("duplicate") ||
     message.includes("violates") ||
     message.includes("permission denied")
@@ -32,9 +36,10 @@ function safeMessage(message: string, fallback: string) {
 export async function createTableAction(
   formData: FormData
 ): Promise<ActionResult> {
+  const { locale, t } = await getServerTranslator();
   const groupId = idSchema.safeParse(String(formData.get("group_id") ?? ""));
   if (!groupId.success) {
-    return { ok: false, message: "Elige un grupo válido." };
+    return { ok: false, message: t("Elige un grupo válido.", "Choose a valid group.") };
   }
 
   const parsed = tableSchema.safeParse({
@@ -50,20 +55,14 @@ export async function createTableAction(
   if (!parsed.success) {
     return {
       ok: false,
-      message: "Revisa los campos marcados.",
-      fieldErrors: flattenZodErrors(parsed.error)
+      message: t("Revisa los campos marcados.", "Check the highlighted fields."),
+      fieldErrors: flattenZodErrors(parsed.error, t)
     };
   }
 
   const design = formData.get("design");
   if (!(design instanceof File) || design.size === 0) {
-    return { ok: false, message: "No se pudo preparar el dibujo." };
-  }
-  if (design.type !== "image/png") {
-    return { ok: false, message: "El dibujo debe ser un PNG." };
-  }
-  if (design.size > 5 * 1024 * 1024) {
-    return { ok: false, message: "El dibujo no puede superar 5 MB." };
+    return { ok: false, message: t("Añade un dibujo o una foto de portada.", "Add a drawing or cover photo.") };
   }
 
   const { supabase, user } = await requireUser();
@@ -75,14 +74,24 @@ export async function createTableAction(
     .maybeSingle();
 
   if (!membership) {
-    return { ok: false, message: "Necesitas pertenecer al grupo para crear tablas." };
+    return { ok: false, message: t("Necesitas pertenecer al grupo para crear tablas.", "You must belong to the group to create tables.") };
   }
 
-  const designPath = `${user.id}/${randomUUID()}.png`;
+  let preparedDesign: Awaited<ReturnType<typeof prepareStoredImage>>;
+  try {
+    preparedDesign = await prepareStoredImage(design);
+  } catch {
+    return {
+      ok: false,
+      message: t("No pudimos preparar la portada. Prueba con otra imagen.", "We could not prepare the cover. Try another image.")
+    };
+  }
+
+  const designPath = `${user.id}/${randomUUID()}.${preparedDesign.extension}`;
   const { error: uploadError } = await supabase.storage
     .from("tablas_disenos")
-    .upload(designPath, await design.arrayBuffer(), {
-      contentType: "image/png",
+    .upload(designPath, preparedDesign.data, {
+      contentType: preparedDesign.contentType,
       cacheControl: "31536000",
       upsert: false
     });
@@ -90,7 +99,7 @@ export async function createTableAction(
   if (uploadError) {
     return {
       ok: false,
-      message: safeMessage(uploadError.message, "No se pudo subir el dibujo.")
+      message: safeMessage(uploadError.message, t("No se pudo subir la portada.", "The cover could not be uploaded."), locale === "en")
     };
   }
 
@@ -120,7 +129,7 @@ export async function createTableAction(
     await supabase.storage.from("tablas_disenos").remove([designPath]);
     return {
       ok: false,
-      message: safeMessage(error?.message ?? "", "No se pudo crear la tabla.")
+      message: safeMessage(error?.message ?? "", t("No se pudo crear la tabla.", "The table could not be created."), locale === "en")
     };
   }
 
@@ -129,10 +138,10 @@ export async function createTableAction(
   redirect(`/grupos/${groupId.data}/tablas/${data.id}`);
 }
 
-async function getOwnedTable(tableId: string) {
+async function getOwnedTable(tableId: string, t: Translator) {
   const parsedId = idSchema.safeParse(tableId);
   if (!parsedId.success) {
-    return { error: "Tabla no válida." } as const;
+    return { error: t("Tabla no válida.", "Invalid table.") } as const;
   }
 
   const { supabase, user } = await requireUser();
@@ -143,31 +152,31 @@ async function getOwnedTable(tableId: string) {
     .single();
 
   if (error || !data) {
-    return { error: "No se encontró la tabla." } as const;
+    return { error: t("No se encontró la tabla.", "The table could not be found.") } as const;
   }
   if (data.creator_id !== user.id) {
-    return { error: "Solo el creador puede editar esta tabla." } as const;
+    return { error: t("Solo el creador puede editar esta tabla.", "Only the creator can edit this table.") } as const;
   }
 
   return { supabase, user, table: data } as const;
 }
 
-async function getOwnedOpenTable(tableId: string) {
-  const owned = await getOwnedTable(tableId);
+async function getOwnedOpenTable(tableId: string, t: Translator) {
+  const owned = await getOwnedTable(tableId, t);
   if ("error" in owned) return owned;
 
   const { table } = owned;
   if (table.closed) {
-    return { error: "La tabla ya está cerrada." } as const;
+    return { error: t("La tabla ya está cerrada.", "The table is already closed.") } as const;
   }
 
   return owned;
 }
 
-async function getMemberTable(tableId: string) {
+async function getMemberTable(tableId: string, t: Translator) {
   const parsedId = idSchema.safeParse(tableId);
   if (!parsedId.success) {
-    return { error: "Tabla no válida." } as const;
+    return { error: t("Tabla no válida.", "Invalid table.") } as const;
   }
 
   const { supabase, user } = await requireUser();
@@ -178,7 +187,7 @@ async function getMemberTable(tableId: string) {
     .single();
 
   if (error || !data) {
-    return { error: "No se encontró la tabla." } as const;
+    return { error: t("No se encontró la tabla.", "The table could not be found.") } as const;
   }
 
   const { data: membership } = await supabase
@@ -189,19 +198,19 @@ async function getMemberTable(tableId: string) {
     .maybeSingle();
 
   if (!membership) {
-    return { error: "Necesitas pertenecer al grupo para editar filas." } as const;
+    return { error: t("Necesitas pertenecer al grupo para editar filas.", "You must belong to the group to edit entries.") } as const;
   }
 
   return { supabase, user, table: data } as const;
 }
 
-async function getMemberOpenTable(tableId: string) {
-  const member = await getMemberTable(tableId);
+async function getMemberOpenTable(tableId: string, t: Translator) {
+  const member = await getMemberTable(tableId, t);
   if ("error" in member) return member;
 
   const { table } = member;
   if (table.closed) {
-    return { error: "La tabla ya está cerrada." } as const;
+    return { error: t("La tabla ya está cerrada.", "The table is already closed.") } as const;
   }
 
   return member;
@@ -224,8 +233,9 @@ function storagePathFromPublicUrl(url: string | null, userId: string) {
 export async function updateTableSettingsAction(
   formData: FormData
 ): Promise<ActionResult> {
+  const { locale, t } = await getServerTranslator();
   const tableId = String(formData.get("table_id") ?? "");
-  const owned = await getOwnedTable(tableId);
+  const owned = await getOwnedTable(tableId, t);
   if ("error" in owned) return { ok: false, message: owned.error };
 
   const parsed = tableSettingsSchema.safeParse({
@@ -237,28 +247,31 @@ export async function updateTableSettingsAction(
   if (!parsed.success) {
     return {
       ok: false,
-      message: "Revisa la fecha prevista.",
-      fieldErrors: flattenZodErrors(parsed.error)
+      message: t("Revisa los ajustes marcados.", "Check the highlighted settings."),
+      fieldErrors: flattenZodErrors(parsed.error, t)
     };
   }
 
   const design = formData.get("design");
   const hasNewDesign = design instanceof File && design.size > 0;
-  if (hasNewDesign && design.type !== "image/png") {
-    return { ok: false, message: "El nuevo dibujo debe ser un PNG." };
-  }
-  if (hasNewDesign && design.size > 5 * 1024 * 1024) {
-    return { ok: false, message: "El nuevo dibujo no puede superar 5 MB." };
-  }
 
   let designPath: string | null = null;
   let designUrl = owned.table.design_url;
   if (hasNewDesign) {
-    designPath = `${owned.user.id}/${randomUUID()}.png`;
+    let preparedDesign: Awaited<ReturnType<typeof prepareStoredImage>>;
+    try {
+      preparedDesign = await prepareStoredImage(design);
+    } catch {
+      return {
+        ok: false,
+        message: t("No pudimos preparar la portada. Prueba con otra imagen.", "We could not prepare the cover. Try another image.")
+      };
+    }
+    designPath = `${owned.user.id}/${randomUUID()}.${preparedDesign.extension}`;
     const { error: uploadError } = await owned.supabase.storage
       .from("tablas_disenos")
-      .upload(designPath, await design.arrayBuffer(), {
-        contentType: "image/png",
+      .upload(designPath, preparedDesign.data, {
+        contentType: preparedDesign.contentType,
         cacheControl: "31536000",
         upsert: false
       });
@@ -266,7 +279,7 @@ export async function updateTableSettingsAction(
     if (uploadError) {
       return {
         ok: false,
-        message: safeMessage(uploadError.message, "No se pudo subir el nuevo dibujo.")
+        message: safeMessage(uploadError.message, t("No se pudo subir la nueva portada.", "The new cover could not be uploaded."), locale === "en")
       };
     }
 
@@ -292,7 +305,7 @@ export async function updateTableSettingsAction(
     }
     return {
       ok: false,
-      message: safeMessage(error.message, "No se pudieron guardar los ajustes.")
+      message: safeMessage(error.message, t("No se pudieron guardar los ajustes.", "Settings could not be saved."), locale === "en")
     };
   }
 
@@ -305,7 +318,10 @@ export async function updateTableSettingsAction(
 
   revalidatePath(`/grupos/${owned.table.group_id}/tablas/${owned.table.id}`);
   revalidatePath(`/grupos/${owned.table.group_id}`);
-  return { ok: true, message: "Portada y fecha actualizadas." };
+  return {
+    ok: true,
+    message: stableVariant(randomUUID(), locale === "en" ? SUCCESS_COPY_EN.tableSettings : SUCCESS_COPY.tableSettings)
+  };
 }
 
 function parseOptionalInteger(value: FormDataEntryValue | null) {
@@ -314,7 +330,7 @@ function parseOptionalInteger(value: FormDataEntryValue | null) {
   return Number.isInteger(number) ? number : Number.NaN;
 }
 
-function getRowValues(formData: FormData, table: Table) {
+function getRowValues(formData: FormData, table: Table, t: Translator) {
   const base = rowBaseSchema.safeParse({
     userIds: formData.getAll("user_ids").map(String),
     notes: String(formData.get("notes") ?? ""),
@@ -323,8 +339,8 @@ function getRowValues(formData: FormData, table: Table) {
 
   if (!base.success) {
     return {
-      error: "Selecciona participantes válidos y revisa las notas.",
-      fieldErrors: flattenZodErrors(base.error)
+      error: t("Selecciona participantes válidos y revisa las notas.", "Select valid participants and check the entry details."),
+      fieldErrors: flattenZodErrors(base.error, t)
     } as const;
   }
 
@@ -332,7 +348,7 @@ function getRowValues(formData: FormData, table: Table) {
   let pointsReceivable: number | null = null;
 
   if (table.info_format === "number" && base.data.numericValue === null) {
-    return { error: "Escribe la cantidad de este registro." } as const;
+    return { error: t("Escribe la cantidad de este registro.", "Enter the value for this entry.") } as const;
   }
 
   if (table.point_system === "EC") {
@@ -344,7 +360,7 @@ function getRowValues(formData: FormData, table: Table) {
       pointsReceivable > table.max_point
     ) {
       return {
-        error: `Los puntos deben estar entre 0 y ${table.max_point}.`
+        error: t(`Los puntos deben estar entre 0 y ${table.max_point}.`, `Points must be between 0 and ${table.max_point}.`)
       } as const;
     }
   } else if (table.info_format === "text") {
@@ -353,14 +369,14 @@ function getRowValues(formData: FormData, table: Table) {
       table.point_system === "Pod" &&
       (position === null || !Number.isFinite(position) || position < 1)
     ) {
-      return { error: "Indica una posición positiva." } as const;
+      return { error: t("Indica una posición positiva.", "Enter a positive position.") } as const;
     }
     if (
       table.point_system === "WtA" &&
       position !== null &&
       position !== 1
     ) {
-      return { error: "En WtA una fila solo puede marcarse como ganadora." } as const;
+      return { error: t("En WtA una fila solo puede marcarse como ganadora.", "In winner-takes-all, an entry can only be marked as the winner.") } as const;
     }
   }
 
@@ -377,7 +393,6 @@ function getRowValues(formData: FormData, table: Table) {
 }
 
 const MAX_EVIDENCE_FILES = 3;
-const MAX_EVIDENCE_SOURCE_BYTES = 10 * 1024 * 1024;
 
 function evidenceFiles(formData: FormData) {
   return formData
@@ -386,28 +401,14 @@ function evidenceFiles(formData: FormData) {
 }
 
 async function prepareEvidence(file: File) {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("Las evidencias deben ser imágenes.");
-  }
-  if (file.size > MAX_EVIDENCE_SOURCE_BYTES) {
-    throw new Error("Cada imagen original puede ocupar como máximo 10 MB.");
-  }
-
-  const result = await sharp(await file.arrayBuffer())
-    .rotate()
-    .resize(512, 512, { fit: "inside", withoutEnlargement: true })
-    .webp({ quality: 82, effort: 4 })
-    .toBuffer({ resolveWithObject: true });
-
-  if (result.info.width > 512 || result.info.height > 512) {
-    throw new Error("No se pudo limitar la evidencia a 512 × 512 px.");
-  }
-  return result.data;
+  return prepareStoredImage(file);
 }
 
 async function uploadEvidenceFiles(
   ctx: Exclude<Awaited<ReturnType<typeof getMemberOpenTable>>, { error: string }>,
-  files: File[]
+  files: File[],
+  t: Translator,
+  useFallback: boolean
 ) {
   const uploaded: string[] = [];
   try {
@@ -416,8 +417,8 @@ async function uploadEvidenceFiles(
       const image = await prepareEvidence(file);
       const { error } = await ctx.supabase.storage
         .from("tabla_evidencias")
-        .upload(path, image, {
-          contentType: "image/webp",
+        .upload(path, image.data, {
+          contentType: image.contentType,
           cacheControl: "31536000",
           upsert: false
         });
@@ -432,18 +433,19 @@ async function uploadEvidenceFiles(
     return {
       error:
         error instanceof Error
-          ? safeMessage(error.message, "No se pudieron subir las evidencias.")
-          : "No se pudieron subir las evidencias."
+          ? safeMessage(error.message, t("No se pudieron subir las evidencias.", "The evidence could not be uploaded."), useFallback)
+          : t("No se pudieron subir las evidencias.", "The evidence could not be uploaded.")
     } as const;
   }
 }
 
 export async function addRowAction(formData: FormData): Promise<ActionResult> {
+  const { locale, t } = await getServerTranslator();
   const tableId = String(formData.get("table_id") ?? "");
-  const ctx = await getMemberOpenTable(tableId);
+  const ctx = await getMemberOpenTable(tableId, t);
   if ("error" in ctx) return { ok: false, message: ctx.error };
 
-  const values = getRowValues(formData, ctx.table);
+  const values = getRowValues(formData, ctx.table, t);
   if ("error" in values) {
     return {
       ok: false,
@@ -454,9 +456,9 @@ export async function addRowAction(formData: FormData): Promise<ActionResult> {
 
   const files = evidenceFiles(formData);
   if (files.length > MAX_EVIDENCE_FILES) {
-    return { ok: false, message: "Cada registro admite como máximo 3 evidencias." };
+    return { ok: false, message: t("Cada registro admite como máximo 3 evidencias.", "Each entry supports up to 3 pieces of evidence.") };
   }
-  const uploaded = await uploadEvidenceFiles(ctx, files);
+  const uploaded = await uploadEvidenceFiles(ctx, files, t, locale === "en");
   if ("error" in uploaded) return { ok: false, message: uploaded.error };
 
   const { error } = await ctx.supabase.from("tabla_filas").insert({
@@ -471,23 +473,27 @@ export async function addRowAction(formData: FormData): Promise<ActionResult> {
     }
     return {
       ok: false,
-      message: safeMessage(error.message, "No se pudo añadir la fila.")
+      message: safeMessage(error.message, t("No se pudo añadir la fila.", "The entry could not be added."), locale === "en")
     };
   }
 
   revalidatePath(`/grupos/${ctx.table.group_id}/tablas/${ctx.table.id}`);
   revalidatePath(`/grupos/${ctx.table.group_id}`);
-  return { ok: true, message: "Fila añadida." };
+  return {
+    ok: true,
+    message: stableVariant(randomUUID(), locale === "en" ? SUCCESS_COPY_EN.rowAdded : SUCCESS_COPY.rowAdded)
+  };
 }
 
 export async function updateRowAction(
   formData: FormData
 ): Promise<ActionResult> {
+  const { locale, t } = await getServerTranslator();
   const rowId = idSchema.safeParse(String(formData.get("row_id") ?? ""));
-  if (!rowId.success) return { ok: false, message: "Fila no válida." };
+  if (!rowId.success) return { ok: false, message: t("Fila no válida.", "Invalid entry.") };
 
   const tableId = String(formData.get("table_id") ?? "");
-  const ctx = await getMemberOpenTable(tableId);
+  const ctx = await getMemberOpenTable(tableId, t);
   if ("error" in ctx) return { ok: false, message: ctx.error };
 
   const { data: existingRow } = await ctx.supabase
@@ -497,9 +503,9 @@ export async function updateRowAction(
     .eq("table_id", ctx.table.id)
     .single();
 
-  if (!existingRow) return { ok: false, message: "No se encontró la fila." };
+  if (!existingRow) return { ok: false, message: t("No se encontró la fila.", "The entry could not be found.") };
 
-  const values = getRowValues(formData, ctx.table);
+  const values = getRowValues(formData, ctx.table, t);
   if ("error" in values) {
     return {
       ok: false,
@@ -514,9 +520,9 @@ export async function updateRowAction(
     .filter((path) => existingRow.evidence_paths.includes(path));
   const files = evidenceFiles(formData);
   if (retainedPaths.length + files.length > MAX_EVIDENCE_FILES) {
-    return { ok: false, message: "Cada registro admite como máximo 3 evidencias." };
+    return { ok: false, message: t("Cada registro admite como máximo 3 evidencias.", "Each entry supports up to 3 pieces of evidence.") };
   }
-  const uploaded = await uploadEvidenceFiles(ctx, files);
+  const uploaded = await uploadEvidenceFiles(ctx, files, t, locale === "en");
   if ("error" in uploaded) return { ok: false, message: uploaded.error };
   const nextEvidencePaths = [...retainedPaths, ...uploaded.paths];
 
@@ -531,7 +537,7 @@ export async function updateRowAction(
     }
     return {
       ok: false,
-      message: safeMessage(error.message, "No se pudo actualizar la fila.")
+      message: safeMessage(error.message, t("No se pudo actualizar la fila.", "The entry could not be updated."), locale === "en")
     };
   }
 
@@ -544,17 +550,21 @@ export async function updateRowAction(
 
   revalidatePath(`/grupos/${ctx.table.group_id}/tablas/${ctx.table.id}`);
   revalidatePath(`/grupos/${ctx.table.group_id}`);
-  return { ok: true, message: "Cambios guardados." };
+  return {
+    ok: true,
+    message: stableVariant(randomUUID(), locale === "en" ? SUCCESS_COPY_EN.rowUpdated : SUCCESS_COPY.rowUpdated)
+  };
 }
 
 export async function deleteRowAction(
   formData: FormData
 ): Promise<ActionResult> {
+  const { locale, t } = await getServerTranslator();
   const rowId = idSchema.safeParse(String(formData.get("row_id") ?? ""));
-  if (!rowId.success) return { ok: false, message: "Fila no válida." };
+  if (!rowId.success) return { ok: false, message: t("Fila no válida.", "Invalid entry.") };
 
   const tableId = String(formData.get("table_id") ?? "");
-  const ctx = await getMemberOpenTable(tableId);
+  const ctx = await getMemberOpenTable(tableId, t);
   if ("error" in ctx) return { ok: false, message: ctx.error };
 
   const { data: existingRow } = await ctx.supabase
@@ -571,7 +581,7 @@ export async function deleteRowAction(
     .eq("table_id", ctx.table.id);
 
   if (error) {
-    return { ok: false, message: "No se pudo eliminar la fila." };
+    return { ok: false, message: t("No se pudo eliminar la fila.", "The entry could not be deleted.") };
   }
 
   if (existingRow?.evidence_paths.length) {
@@ -582,14 +592,18 @@ export async function deleteRowAction(
 
   revalidatePath(`/grupos/${ctx.table.group_id}/tablas/${ctx.table.id}`);
   revalidatePath(`/grupos/${ctx.table.group_id}`);
-  return { ok: true, message: "Fila eliminada." };
+  return {
+    ok: true,
+    message: stableVariant(randomUUID(), locale === "en" ? SUCCESS_COPY_EN.rowDeleted : SUCCESS_COPY.rowDeleted)
+  };
 }
 
 export async function closeTableAction(
   formData: FormData
 ): Promise<ActionResult> {
+  const { locale, t } = await getServerTranslator();
   const tableId = String(formData.get("table_id") ?? "");
-  const owned = await getOwnedOpenTable(tableId);
+  const owned = await getOwnedOpenTable(tableId, t);
   if ("error" in owned) return { ok: false, message: owned.error };
 
   const { error } = await owned.supabase.rpc("close_table", {
@@ -599,12 +613,15 @@ export async function closeTableAction(
   if (error) {
     return {
       ok: false,
-      message: safeMessage(error.message, "No se pudo cerrar la tabla.")
+      message: safeMessage(error.message, t("No se pudo cerrar la tabla.", "The table could not be closed."), locale === "en")
     };
   }
 
   revalidatePath(`/grupos/${owned.table.group_id}/tablas/${owned.table.id}`);
   revalidatePath(`/grupos/${owned.table.group_id}`);
   revalidatePath("/");
-  return { ok: true, message: "Tabla cerrada y puntos calculados." };
+  return {
+    ok: true,
+    message: stableVariant(randomUUID(), locale === "en" ? SUCCESS_COPY_EN.tableClosed : SUCCESS_COPY.tableClosed)
+  };
 }

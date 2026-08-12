@@ -42,8 +42,8 @@ export async function showDeviceNotification(notification: AppNotification) {
   const registration = await getServiceWorkerRegistration();
   await registration.showNotification(notification.title, {
     body: notification.body,
-    icon: "/icons/192",
-    badge: "/icons/192",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
     tag: `hevi-${notification.id}`,
     data: { url: notificationHref(notification) }
   });

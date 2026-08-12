@@ -10,6 +10,7 @@ import {
 } from "react";
 import { RotateCcw, Undo2 } from "lucide-react";
 
+import { useLanguage } from "@/components/language-provider";
 import {
   smoothStrokePoints,
   type DrawingPoint as Point
@@ -26,6 +27,7 @@ const colors = ["#14a074", "#f4b740", "#ef6a68", "#4b7bec"];
 
 export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
   function DrawingCanvas(_props, forwardedRef) {
+    const { t } = useLanguage();
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const strokesRef = useRef<Stroke[]>([]);
     const activeStrokeRef = useRef<Stroke | null>(null);
@@ -156,13 +158,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
             redraw();
             const source = canvasRef.current;
             if (!source) {
-              reject(new Error("No se pudo exportar el dibujo."));
+              reject(new Error(t("No se pudo exportar el dibujo.", "The drawing could not be exported.")));
               return;
             }
 
-            // Cap the exported PNG to 1024 px on the longest side so the file
-            // stays well under 1 MB even on high-DPR displays with many strokes.
-            const MAX_EXPORT_DIMENSION = 1024;
+            // Every stored image in the app shares the same 512 px ceiling.
+            const MAX_EXPORT_DIMENSION = 512;
             const longest = Math.max(source.width, source.height);
             const scale =
               longest > MAX_EXPORT_DIMENSION
@@ -176,17 +177,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
             exportCanvas.height = targetHeight;
             const context = exportCanvas.getContext("2d");
             if (!context) {
-              reject(new Error("No se pudo exportar el dibujo."));
+              reject(new Error(t("No se pudo exportar el dibujo.", "The drawing could not be exported.")));
               return;
             }
             context.drawImage(source, 0, 0, targetWidth, targetHeight);
             exportCanvas.toBlob((blob) => {
               if (blob) resolve(blob);
-              else reject(new Error("No se pudo exportar el dibujo."));
+              else reject(new Error(t("No se pudo exportar el dibujo.", "The drawing could not be exported.")));
             }, "image/png");
           })
       }),
-      [redraw]
+      [redraw, t]
     );
 
     return (
@@ -194,7 +195,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
         <div className="canvas-wrap">
           <canvas
             ref={canvasRef}
-            aria-label="Lienzo para dibujar la portada"
+            aria-label={t("Lienzo para dibujar la portada", "Canvas for drawing the cover")}
             onPointerDown={(event) => {
               event.currentTarget.setPointerCapture(event.pointerId);
               activeStrokeRef.current = {
@@ -214,13 +215,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
           />
           {strokeCount === 0 ? (
             <span className="canvas-hint" aria-hidden="true">
-              Dibuja algo aquí
-              <small>con el dedo o el ratón</small>
+              {t("Dibuja algo aquí", "Draw something here")}
+              <small>{t("con el dedo o el ratón", "with your finger or mouse")}</small>
             </span>
           ) : null}
         </div>
         <div className="canvas-toolbar">
-          <div className="color-palette" aria-label="Colores del pincel">
+          <div className="color-palette" aria-label={t("Colores del pincel", "Brush colours")}>
             {colors.map((item) => (
               <button
                 type="button"
@@ -228,7 +229,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
                 className={item === color ? "color active" : "color"}
                 style={{ backgroundColor: item }}
                 onClick={() => setColor(item)}
-                aria-label={`Usar color ${item}`}
+                aria-label={`${t("Usar color", "Use colour")} ${item}`}
                 aria-pressed={item === color}
               />
             ))}
@@ -245,7 +246,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
               }}
             >
               <Undo2 size={17} />
-              Deshacer
+              {t("Deshacer", "Undo")}
             </button>
             <button
               type="button"
@@ -258,7 +259,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle>(
               }}
             >
               <RotateCcw size={17} />
-              Limpiar
+              {t("Limpiar", "Clear")}
             </button>
           </div>
         </div>

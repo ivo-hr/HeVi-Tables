@@ -1,5 +1,10 @@
-const CACHE_NAME = "hevi-static-v2";
-const STATIC_ASSETS = ["/offline", "/icons/192", "/icons/512"];
+const CACHE_NAME = "hevi-static-v3";
+const STATIC_ASSETS = [
+  "/offline",
+  "/brand/logo.png",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png"
+];
 const IS_LOCAL = ["localhost", "127.0.0.1"].includes(self.location.hostname);
 
 self.addEventListener("install", (event) => {
@@ -59,8 +64,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title || "HeVi", {
       body: payload.body || "Tienes una novedad.",
-      icon: "/icons/192",
-      badge: "/icons/192",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
       tag: payload.tag || "hevi-notification",
       data: { url: payload.url || "/" }
     })

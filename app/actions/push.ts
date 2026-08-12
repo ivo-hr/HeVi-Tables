@@ -1,7 +1,11 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { z } from "zod";
 
+import { getServerTranslator } from "@/lib/i18n-server";
+import { stableVariant, SUCCESS_COPY, SUCCESS_COPY_EN } from "@/lib/presentation";
 import { requireUser } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/types";
 
@@ -15,6 +19,7 @@ const subscriptionSchema = z.object({
 export async function savePushSubscriptionAction(
   formData: FormData
 ): Promise<ActionResult> {
+  const { locale, t } = await getServerTranslator();
   const parsed = subscriptionSchema.safeParse({
     endpoint: formData.get("endpoint"),
     p256dh: formData.get("p256dh"),
@@ -22,7 +27,7 @@ export async function savePushSubscriptionAction(
     userAgent: String(formData.get("userAgent") ?? "")
   });
   if (!parsed.success) {
-    return { ok: false, message: "El navegador devolvió una suscripción no válida." };
+    return { ok: false, message: t("El navegador devolvió una suscripción no válida.", "The browser returned an invalid subscription.") };
   }
 
   const { supabase, user } = await requireUser();
@@ -38,16 +43,20 @@ export async function savePushSubscriptionAction(
   );
 
   return error
-    ? { ok: false, message: "No se pudo guardar este dispositivo." }
-    : { ok: true, message: "Notificaciones activadas en este dispositivo." };
+    ? { ok: false, message: t("No se pudo guardar este dispositivo.", "This device could not be saved.") }
+    : {
+        ok: true,
+        message: stableVariant(randomUUID(), locale === "en" ? SUCCESS_COPY_EN.pushEnabled : SUCCESS_COPY.pushEnabled)
+      };
 }
 
 export async function deletePushSubscriptionAction(
   formData: FormData
 ): Promise<ActionResult> {
+  const { locale, t } = await getServerTranslator();
   const endpoint = z.url().max(2048).safeParse(formData.get("endpoint"));
   if (!endpoint.success) {
-    return { ok: false, message: "No se encontró la suscripción del dispositivo." };
+    return { ok: false, message: t("No se encontró la suscripción del dispositivo.", "The device subscription could not be found.") };
   }
 
   const { supabase, user } = await requireUser();
@@ -58,6 +67,9 @@ export async function deletePushSubscriptionAction(
     .eq("endpoint", endpoint.data);
 
   return error
-    ? { ok: false, message: "No se pudo desactivar este dispositivo." }
-    : { ok: true, message: "Notificaciones desactivadas en este dispositivo." };
+    ? { ok: false, message: t("No se pudo desactivar este dispositivo.", "This device could not be disabled.") }
+    : {
+        ok: true,
+        message: stableVariant(randomUUID(), locale === "en" ? SUCCESS_COPY_EN.pushDisabled : SUCCESS_COPY.pushDisabled)
+      };
 }

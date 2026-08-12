@@ -1,28 +1,42 @@
 # HeVi Tables
 
 HeVi Tables is a private, mobile-first PWA for running predictions, friendly
-bets, and competitions. Friends can create custom tables, draw a cover, assign
-participants to entries, close the result under a predefined scoring system,
-and compare weekly, monthly, or all-time leaderboards.
+bets, and competitions. Friends can create custom tables, draw or upload a
+cover, assign participants to entries, close the result under a predefined
+scoring system, and compare weekly, monthly, or all-time leaderboards.
 
 ## Features
 
 - Next.js 16 App Router application written in TypeScript.
 - Email/password and Google authentication through Supabase Auth.
 - Group-first home screen with private memberships, shareable 10-character
-  invite codes, and owner-controlled code rotation.
-- Creator-editable table artwork and planned closing dates, kept separate from
-  the immutable scoring closure timestamp.
+  invite codes, owner-controlled code rotation, editable one-to-three-symbol marks,
+  and stable low-contrast group colors.
+- In-place table discovery behind a compact search control, with combinable
+  name, creator, open/closed-state, and calendar-period filters plus ordering
+  by creation date, name, creator, or state.
+- Creator-editable drawn or photographic table artwork and planned closing
+  dates, kept separate from the immutable scoring closure timestamp.
 - Optional 280-character table descriptions available during creation and
   later editing.
 - Text or numeric entry information. Numeric tables support ascending or
   descending order, and `WtA`/`Pod` positions are derived automatically from
   that quantity both in the live UI and authoritatively at closing.
-- Up to three private evidence photos per row, with browser-side crop/zoom,
-  WebP compression, a 512×512 maximum, server-side reprocessing, and signed
-  group-member URLs.
+- One visual crop editor shared by avatars, table photos, and up to three
+  private evidence photos per row. It keeps the complete source visible behind
+  a directly movable and corner-resizable 1:1 crop frame, emits WebP at no more
+  than 512×512 and 1 MiB, supports repeated 90-degree rotation, and is backed
+  by authoritative server-side reprocessing.
+- Compact evidence thumbnails appear directly on each row. Opening a row shows
+  a read-first participant/value/evidence detail view with an in-app full-size
+  lightbox; editing only starts from its explicit edit button.
 - Per-user light, dark, or system theme preference plus five selectable accent
   colors.
+- Complete Spanish and English interface copy, locale-aware dates and numbers,
+  and a language preference persisted both with the account and in the current
+  browser.
+- A bilingual legal/privacy/terms disclosure at the end of Settings and on a
+  public pre-registration page, with deployment-configurable operator details.
 - Persistent in-app notifications plus per-device system notifications for new
   group members, tables, table rows, and table closure. Realtime covers
   connected clients; standards-based Web Push covers subscribed browsers and
@@ -31,20 +45,25 @@ and compare weekly, monthly, or all-time leaderboards.
   following the active theme and accent color.
 - Touch- and mouse-friendly drawing canvas with pointer-noise filtering,
   automatic multi-pass smoothing, cubic Bézier rendering, four colors, undo,
-  clear, and PNG export.
+  clear, a square canvas, and 512 px-capped PNG export before server
+  normalization.
 - Three scoring systems:
   - `WtA` — one entry receives all available points.
   - `Pod` — uses `maxPoint - ((position - 1) * 2)`, clamped at zero.
   - `EC` — points are assigned manually between zero and the table maximum.
 - Rows can contain multiple participants, stored as PostgreSQL UUID arrays.
 - Atomic and irreversible table closing inside PostgreSQL.
-- Per-group and per-table leaderboards for the last 7 days, last 30 days, or
-  all recorded history. Open-table points are provisional and refresh through
-  Realtime as rows are added; closed-table points remain definitive.
+- Per-group and per-table leaderboards for a selectable Monday-based calendar
+  week, calendar month, or all recorded history. The current month is the
+  default; the three main periods remain visible, while the concrete date and
+  table controls stay behind a compact search button. Open-table points are provisional and update in place through
+  Realtime on row creation, editing, or deletion; closed-table points remain
+  definitive. Expandable member analysis includes participation, first-place
+  finishes, averages, best results, confirmed points, and points still in play.
 - User profiles and avatar uploads.
 - PostgreSQL Row Level Security, column-level grants, Storage policies, file
   limits, validation triggers, and performance indexes.
-- Installable PWA manifest, generated icons, static asset caching, and an
+- Installable PWA manifest, mascot-based icons and favicon, static asset caching, and an
   offline fallback.
 - Context-aware mobile navigation for groups, the current group's tables,
   rankings, and account settings.
@@ -60,7 +79,7 @@ and compare weekly, monthly, or all-time leaderboards.
 | Language | TypeScript | Domain types, validation, UI, and server code |
 | Authentication | Supabase Auth | Email/password sessions and Google OAuth |
 | Database | Supabase PostgreSQL | Groups, memberships, tables, rows, scoring, and leaderboard aggregation |
-| Realtime | Supabase Realtime | Live delivery of row-level-secured notifications to connected clients |
+| Realtime | Supabase Realtime | Live delivery of notifications and ranking changes to connected clients |
 | Web Push | Push API, service worker, VAPID, and a Supabase Edge Function | Native device notifications, including delivery after the app closes |
 | File storage | Supabase Storage | Avatars, table cover drawings, and private evidence photos |
 | Validation | Zod and PostgreSQL | Fast UI feedback plus authoritative database checks |
@@ -150,10 +169,21 @@ Use this workflow when connecting the application to Supabase Cloud.
    NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable-or-anon-key>
    NEXT_PUBLIC_SITE_URL=http://localhost:3000
    HEALTHCHECK_SECRET=<long-random-value>
+   NEXT_PUBLIC_LEGAL_CREATOR=<creator-or-operator-name>
+   NEXT_PUBLIC_LEGAL_CONTACT=<private-contact-email-or-url>
+   NEXT_PUBLIC_LEGAL_REPOSITORY=https://github.com/ivo-hr/HeVi-Tables
    ```
 
    The PostgreSQL password is not a frontend variable. Do not add it to
    `.env.local`, source files, commits, issues, or logs.
+
+   Before a public launch, replace the sample legal contact with a private,
+   monitored channel and identify the real operator. Where the concrete
+   activity requires an address or registration/tax disclosure, also set
+   `NEXT_PUBLIC_LEGAL_ADDRESS` and `NEXT_PUBLIC_LEGAL_REGISTRATION`. The
+   repository provides the disclosure structure, but the deployer remains
+   responsible for making those factual details accurate for the actual
+   service and jurisdiction.
 
 3. Apply every migration in [`supabase/migrations`](supabase/migrations) in
    filename order. The CLI does this automatically:
@@ -320,6 +350,22 @@ mode and applies data attributes to the document. CSS custom properties drive
 surfaces, text, focus rings, active controls, and accent states without storing
 arbitrary user-provided CSS values.
 
+### Language and legal information
+
+The root layout reads the `hevi_locale` cookie before rendering, so public and
+authenticated server output use the same language without client-only text
+swaps. Each profile also stores `es` or `en`; login synchronizes that saved
+choice to the browser, while Settings updates both. Validation, Server Action
+feedback, dates, number formatting, metadata, the PWA manifest, notification
+copy, and empty/error states use the active locale.
+
+Settings ends with expandable copyright, operator, privacy, necessary-storage,
+terms, and disclaimer sections. The same disclosure is available at `/legal`
+before registration and is linked from the login form. Its creator, contact,
+repository, optional address, and optional registration details come from the
+public legal environment variables, so production deployments do not need to
+fork UI copy just to insert truthful operator data.
+
 ### Notifications
 
 Database triggers create one notification per affected group member, excluding
@@ -337,11 +383,13 @@ The authenticated home page lists the user's groups rather than mixing every
 table together. A user can create a group or join one by entering its
 case-insensitive 10-character code. Group creation and joining are atomic
 PostgreSQL functions. Members can copy the current code, while only the group
-owner can rotate it and invalidate the previous code.
+owner can rotate it and invalidate the previous code. Each group also stores an
+owner-editable mark of up to three letters, numbers, symbols, or emoji; its UUID selects one stable soft color so
+the same identity is rendered consistently for every member.
 
 ### Rows and participants
 
-Only the creator of an open table can add, update, or delete rows. Each row
+Any member of an open table's group can add, update, or delete rows. Each row
 stores one or more profile IDs in `user_ids`, and every selected profile must be
 a member of the table's group. The database rejects empty arrays, duplicate
 IDs, nonexistent or out-of-group profiles, values incompatible with the
@@ -351,8 +399,10 @@ Each table fixes the row information format to either text or number. A numeric
 `WtA` or `Pod` table is displayed in configured ascending/descending order
 immediately; `close_table` repeats that ranking inside the transaction so the
 score never depends on client ordering. A row may reference at most three
-private evidence objects. The cropper exports WebP within 512×512 and the Server
-Action reprocesses the image before Storage accepts it.
+private evidence objects. The cropper exports square WebP within 512×512 and
+the Server Action enforces the square crop again before Storage accepts it. Storage paths are
+checked against group membership without ambiguously resolving the table's
+display name as the object path.
 
 ### Closing and scoring
 
@@ -365,13 +415,23 @@ cannot directly write `points_won`, `closed`, or `closed_date`.
 
 `get_group_leaderboard` expands each row's UUID array, joins it to profiles,
 restricts both members and tables to one group, filters by date and optional
-table ID, and returns accumulated points and the number of scored tables per
-user. Open rows are scored provisionally from their current EC value or
-WtA/Pod position; closed rows use immutable `points_won` values.
+table ID, and returns accumulated, confirmed, and provisional points together
+with participation, first-place finishes, average points, best result, and
+latest activity. Open rows are scored provisionally from their current EC
+value or WtA/Pod position; closed rows use immutable `points_won` values. A
+client provider listens to Realtime and requests only this RPC when ranking
+data changes, without refreshing the page.
+
+The `week` period begins at Monday 00:00 and the `month` period at day 1
+00:00, using the `Europe/Madrid` calendar and ending at the next matching
+boundary. The UI defaults to the current month and lets the user choose an
+earlier week or month; these periods are deliberately not rolling 7-day or
+30-day windows.
 
 ### PWA and offline behavior
 
-The manifest and icons are generated by Next.js. The service worker handles
+The manifest is generated by Next.js and references the optimized mascot icon
+set. The service worker handles
 background Push and notification clicks. Outside local development it also
 caches only versioned static assets, icons, and the offline page; it deliberately
 does not cache authenticated HTML, API responses, or leaderboard data.
@@ -409,7 +469,7 @@ does not cache authenticated HTML, API responses, or leaderboard data.
 
 | Path | Purpose |
 | --- | --- |
-| [`app/layout.tsx`](app/layout.tsx) | Root HTML layout, global metadata, viewport settings, CSS, and service-worker registration |
+| [`app/layout.tsx`](app/layout.tsx) | Locale-aware root HTML layout and metadata, language context, viewport settings, CSS, and service-worker registration |
 | [`app/globals.css`](app/globals.css) | Complete visual system, responsive layouts, form states, mobile navigation, and reduced-motion support |
 | [`app/(app)/layout.tsx`](app/(app)/layout.tsx) | Shared authenticated application shell and current profile lookup |
 | [`app/(app)/loading.tsx`](app/(app)/loading.tsx) | Loading state shared by authenticated pages |
@@ -421,6 +481,7 @@ does not cache authenticated HTML, API responses, or leaderboard data.
 | [`app/(app)/tablas/nueva/page.tsx`](app/(app)/tablas/nueva/page.tsx) | Legacy new-table URL redirected to the group-first home |
 | [`app/(app)/tablas/[id]/page.tsx`](app/(app)/tablas/[id]/page.tsx) | Legacy table URL redirected to its group-scoped route |
 | [`app/login/page.tsx`](app/login/page.tsx) | Public sign-in and registration page |
+| [`app/legal/page.tsx`](app/legal/page.tsx) | Public bilingual privacy, legal notice, cookies, terms, and authorship page |
 | [`app/offline/page.tsx`](app/offline/page.tsx) | Offline fallback displayed when navigation cannot reach the server |
 | [`app/not-found.tsx`](app/not-found.tsx) | Application-wide not-found state |
 
@@ -435,9 +496,9 @@ does not appear in their public URLs.
 | [`app/actions/groups.ts`](app/actions/groups.ts) | Group creation, code-based joining, invite-code rotation, validation, and redirects |
 | [`app/actions/notifications.ts`](app/actions/notifications.ts) | Marks the authenticated user's unread notifications as read |
 | [`app/actions/push.ts`](app/actions/push.ts) | Validates and stores or removes the authenticated browser's Push subscription |
-| [`app/actions/preferences.ts`](app/actions/preferences.ts) | Validates and persists the authenticated user's theme and accent color |
-| [`app/actions/profile.ts`](app/actions/profile.ts) | Profile validation, avatar upload, and profile update |
-| [`app/actions/tables.ts`](app/actions/tables.ts) | Table creation, PNG upload, row CRUD, authorization checks, and atomic close RPC invocation |
+| [`app/actions/preferences.ts`](app/actions/preferences.ts) | Validates and persists theme, accent color, and account/browser language preferences |
+| [`app/actions/profile.ts`](app/actions/profile.ts) | Profile validation, bounded WebP avatar processing/upload, old-object cleanup, and profile update |
+| [`app/actions/tables.ts`](app/actions/tables.ts) | Table creation, normalized cover/evidence upload, row CRUD, authorization checks, and atomic close RPC invocation |
 
 ### Route handlers and generated PWA assets
 
@@ -446,8 +507,9 @@ does not appear in their public URLs.
 | [`app/auth/callback/route.ts`](app/auth/callback/route.ts) | Exchanges Supabase PKCE/OAuth codes for cookie-backed sessions and performs safe redirects |
 | [`app/api/health/route.ts`](app/api/health/route.ts) | Protected healthcheck that verifies PostgreSQL availability without exposing data |
 | [`app/manifest.ts`](app/manifest.ts) | Generates `manifest.webmanifest` for PWA installation |
-| [`app/icons/[size]/route.tsx`](app/icons/[size]/route.tsx) | Generates 192×192 and 512×512 PNG application icons |
-| [`app/apple-icon.tsx`](app/apple-icon.tsx) | Generates the Apple touch icon |
+| [`app/icon.png`](app/icon.png) | Circular close-up of the mascot's face used by browser icon metadata |
+| [`app/apple-icon.png`](app/apple-icon.png) | Padded Apple touch icon derived from the supplied mascot logo |
+| [`app/favicon.ico`](app/favicon.ico) | Circular 16/32/48 px favicon zoomed into the mascot's wink and smile |
 
 ### Reusable UI components
 
@@ -458,22 +520,30 @@ does not appear in their public URLs.
 | [`components/auth-form.tsx`](components/auth-form.tsx) | Client-side email login, registration, Google OAuth, and auth feedback |
 | [`components/avatar.tsx`](components/avatar.tsx) | Avatar image with an initials fallback |
 | [`components/configuration-needed.tsx`](components/configuration-needed.tsx) | Safe setup screen shown when public Supabase variables are missing |
-| [`components/create-table-form.tsx`](components/create-table-form.tsx) | Coordinates table settings, canvas export, file creation, submission, and errors |
+| [`components/create-table-form.tsx`](components/create-table-form.tsx) | Coordinates table settings, drawing/photo cover export, submission, and errors |
 | [`components/drawing-canvas.tsx`](components/drawing-canvas.tsx) | Pointer input, automatic stroke finalization, cubic Bézier rendering, palette, undo, clear, resize, and PNG export |
-| [`components/evidence-picker.tsx`](components/evidence-picker.tsx) | Three-image evidence picker with resizing, WebP compression, crop/zoom controls, previews, and removal |
-| [`components/group-card.tsx`](components/group-card.tsx) | Group summary card with role, member count, and table status |
-| [`components/group-forms.tsx`](components/group-forms.tsx) | Client forms for creating a group or joining with an invite code |
+| [`components/evidence-picker.tsx`](components/evidence-picker.tsx) | Three-image evidence picker with shared visual cropping, bounded WebP output, previews, retention, and removal |
+| [`components/image-crop-editor.tsx`](components/image-crop-editor.tsx) | Full-source crop view, directly movable and corner-resizable 1:1 frame, 90-degree rotation, rule-of-thirds guide, and bounded browser encoding |
+| [`components/image-upload-field.tsx`](components/image-upload-field.tsx) | Reusable single-image chooser, preview, edit, replacement, validation, and crop-editor integration |
+| [`components/group-card.tsx`](components/group-card.tsx) | Full-color group identity card with its stable tone, up-to-three-symbol mark, role, member count, and table status |
+| [`components/group-forms.tsx`](components/group-forms.tsx) | Client forms for creating a named/marked group or joining with an invite code |
+| [`components/group-identity-settings.tsx`](components/group-identity-settings.tsx) | Owner control for updating a group's letter/number/symbol/emoji mark without reloading the page |
 | [`components/invite-code.tsx`](components/invite-code.tsx) | Copyable group code and owner-only code rotation control |
-| [`components/leaderboard.tsx`](components/leaderboard.tsx) | Ranked user list, medals, scores, avatars, and empty state |
+| [`components/language-provider.tsx`](components/language-provider.tsx) | Client locale context plus bilingual copy and locale-aware date/number helpers |
+| [`components/language-settings.tsx`](components/language-settings.tsx) | Account language selector with immediate server-rendered refresh |
+| [`components/leaderboard.tsx`](components/leaderboard.tsx) | Expandable ranked-user analysis, aggregate insights, tie-aware positions, scores, avatars, and empty state |
+| [`components/legal-disclosure.tsx`](components/legal-disclosure.tsx) | Reusable bilingual copyright, privacy, storage, terms, and disclaimer disclosure |
+| [`components/live-ranking.tsx`](components/live-ranking.tsx) | Client ranking provider, visible week/month/history tabs, collapsible calendar/table filters, in-place Realtime refresh, live status, and personal score |
 | [`components/mobile-navigation.tsx`](components/mobile-navigation.tsx) | Context-aware mobile links to groups, current-group tables, ranking, and settings |
 | [`components/notification-menu.tsx`](components/notification-menu.tsx) | Notification bell, unread count, recent activity panel, and Realtime subscription |
 | [`components/device-notification-settings.tsx`](components/device-notification-settings.tsx) | Per-device permission, Push subscription, test notification, status, and unsubscribe controls |
 | [`components/profile-form.tsx`](components/profile-form.tsx) | Profile name and avatar upload form backed by a Server Action |
-| [`components/ranking-realtime-refresh.tsx`](components/ranking-realtime-refresh.tsx) | Refreshes the current group ranking when Realtime reports a newly inserted table row |
-| [`components/row-editor.tsx`](components/row-editor.tsx) | Editable/read-only row views, participant selection, conditional rule inputs, deletion, and table closing |
+| [`components/row-editor.tsx`](components/row-editor.tsx) | Compact row evidence, read-first record details, participant/value presentation, full-size evidence lightbox, explicit editing, deletion, and table closing |
 | [`components/select-field.tsx`](components/select-field.tsx) | Accessible themed combobox/listbox used everywhere instead of native selects |
 | [`components/service-worker-register.tsx`](components/service-worker-register.tsx) | Registers the service worker in browsers that support it |
-| [`components/table-card.tsx`](components/table-card.tsx) | Reusable table preview with cover, state, scoring system, and dates |
+| [`components/table-card.tsx`](components/table-card.tsx) | Reusable table preview with cover, state, creator, scoring system, and dates |
+| [`components/table-explorer.tsx`](components/table-explorer.tsx) | Collapsible client-side table search, combined creator/state/calendar filters, multi-field sorting, result count, and empty state |
+| [`components/table-cover-editor.tsx`](components/table-cover-editor.tsx) | Switches table artwork between the smoothed drawing canvas and a cropped photo upload |
 | [`components/table-settings-form.tsx`](components/table-settings-form.tsx) | Creator form for replacing a table drawing and editing its description and planned closing date |
 | [`components/theme-controller.tsx`](components/theme-controller.tsx) | Resolves saved/system theme preference and applies document appearance attributes |
 
@@ -482,13 +552,27 @@ does not appear in their public URLs.
 | Path | Purpose |
 | --- | --- |
 | [`lib/types.ts`](lib/types.ts) | Domain models, action result types, scoring enum, and typed Supabase database contract |
+| [`lib/calendar-periods.ts`](lib/calendar-periods.ts) | Monday-based week/month normalization, locale-aware labels, and historical ranking-period options |
+| [`lib/calendar-periods.test.ts`](lib/calendar-periods.test.ts) | Tests current-period defaults, deep-link normalization, labels, and historical option coverage |
 | [`lib/validation.ts`](lib/validation.ts) | Zod schemas for tables, rows, profiles, and credentials |
 | [`lib/rules.ts`](lib/rules.ts) | Pure TypeScript implementation of WtA, Pod, and EC calculations for testable rule behavior |
 | [`lib/rules.test.ts`](lib/rules.test.ts) | Tests successful calculations, clamping, validation failures, and input immutability |
-| [`lib/format.ts`](lib/format.ts) | Spanish locale date/point formatting, initials, and scoring-system labels |
+| [`lib/format.ts`](lib/format.ts) | Locale-aware date/point formatting, initials, and scoring-system labels |
+| [`lib/i18n.ts`](lib/i18n.ts) | Shared Spanish/English locale types, selection, and number/date formatting primitives |
+| [`lib/i18n-server.ts`](lib/i18n-server.ts) | Cookie-backed server locale lookup and bilingual translator |
+| [`lib/legal.ts`](lib/legal.ts) | Deployment-configurable creator, operator contact, repository, and legal revision values |
 | [`lib/device-notifications.ts`](lib/device-notifications.ts) | Shared service-worker registration, notification URL, VAPID conversion, and connected-client system notification helpers |
 | [`lib/drawing.ts`](lib/drawing.ts) | Pure point filtering, pointer-noise reduction, simplification, and corner-rounding pipeline |
 | [`lib/drawing.test.ts`](lib/drawing.test.ts) | Tests smoothing, endpoint preservation, jitter reduction, and input immutability |
+| [`lib/image-constraints.ts`](lib/image-constraints.ts) | Shared image dimensions, byte limits, accepted MIME types, and UI copy |
+| [`lib/image-processing.ts`](lib/image-processing.ts) | Authoritative Sharp rotation, resize, iterative WebP compression, and output validation |
+| [`lib/image-processing.test.ts`](lib/image-processing.test.ts) | Tests server-side format normalization, dimension/size ceilings, and invalid MIME rejection |
+| [`lib/group-mark.ts`](lib/group-mark.ts) | Unicode-grapheme counting, normalization, and safe three-symbol input truncation for group marks |
+| [`lib/group-mark.test.ts`](lib/group-mark.test.ts) | Tests flags, composed emoji, Unicode normalization, and complete-symbol truncation |
+| [`lib/presentation.ts`](lib/presentation.ts) | Stable visual tone selection plus reusable varied interface copy |
+| [`lib/presentation.test.ts`](lib/presentation.test.ts) | Tests deterministic visual and copy choices |
+| [`lib/ranking.ts`](lib/ranking.ts) | Tie-aware ranking-position helpers shared by live and detailed ranking views |
+| [`lib/ranking.test.ts`](lib/ranking.test.ts) | Tests tied positions and score tie-breakers |
 
 ### Supabase client modules
 
@@ -512,6 +596,17 @@ does not appear in their public URLs.
 | [`supabase/migrations/20260731040000_preferences_notifications_descriptions.sql`](supabase/migrations/20260731040000_preferences_notifications_descriptions.sql) | Appearance preferences, table descriptions, notification triggers, RLS, indexes, and Realtime publication |
 | [`supabase/migrations/20260731050000_entry_formats_evidence_push.sql`](supabase/migrations/20260731050000_entry_formats_evidence_push.sql) | Typed row information, automatic numeric ranking, private evidence Storage, Push subscriptions, and asynchronous delivery trigger |
 | [`supabase/migrations/20260731060000_live_leaderboard.sql`](supabase/migrations/20260731060000_live_leaderboard.sql) | Provisional open-table leaderboard scoring and Realtime publication for new rows |
+| [`supabase/migrations/20260731070000_evidence_size_limit.sql`](supabase/migrations/20260731070000_evidence_size_limit.sql) | Compatibility increase for evidence objects created before unified processing |
+| [`supabase/migrations/20260731080000_member_row_access.sql`](supabase/migrations/20260731080000_member_row_access.sql) | Extends open-row and evidence editing from creators to all group members |
+| [`supabase/migrations/20260811000000_unified_image_storage.sql`](supabase/migrations/20260811000000_unified_image_storage.sql) | Aligns avatar, cover, and evidence buckets to private/public visibility, WebP, and 1 MiB uploads |
+| [`supabase/migrations/20260811010000_fix_evidence_storage_policy.sql`](supabase/migrations/20260811010000_fix_evidence_storage_policy.sql) | Repairs ambiguous evidence-path RLS evaluation and keeps non-members blocked |
+| [`supabase/migrations/20260812000000_notification_copy_variants.sql`](supabase/migrations/20260812000000_notification_copy_variants.sql) | Adds stable five-way copy variants for every notification event |
+| [`supabase/migrations/20260812010000_group_identity_ranking_insights.sql`](supabase/migrations/20260812010000_group_identity_ranking_insights.sql) | Adds group marks, richer ranking aggregates, complete ranking Realtime coverage, and the marked-group creation RPC |
+| [`supabase/migrations/20260812020000_group_mark_emojis.sql`](supabase/migrations/20260812020000_group_mark_emojis.sql) | Extends group marks to one-to-three Unicode symbols, including composed emoji |
+| [`supabase/migrations/20260812030000_calendar_ranking_periods.sql`](supabase/migrations/20260812030000_calendar_ranking_periods.sql) | Replaces rolling 7/30-day ranking windows with Europe/Madrid calendar-week and calendar-month boundaries |
+| [`supabase/migrations/20260812040000_selectable_calendar_ranking_periods.sql`](supabase/migrations/20260812040000_selectable_calendar_ranking_periods.sql) | Adds an optional anchor date so any concrete calendar week or month can be queried while retaining the current-period default |
+| [`supabase/migrations/20260812050000_profile_locale.sql`](supabase/migrations/20260812050000_profile_locale.sql) | Persists each profile's Spanish/English locale and carries the signup locale into new profiles |
+| [`supabase/migrations/20260812060000_localized_notifications.sql`](supabase/migrations/20260812060000_localized_notifications.sql) | Stores durable and background Push notification copy in each recipient's saved language |
 | [`supabase/functions/send-push/index.ts`](supabase/functions/send-push/index.ts) | Secret-checked database-webhook receiver that sends VAPID Web Push and removes expired endpoints |
 | [`supabase/functions/send-push/deno.json`](supabase/functions/send-push/deno.json) | Isolated strict Deno configuration for the Push function |
 | [`supabase/seed.sql`](supabase/seed.sql) | Intentionally empty seed entry point; profiles are generated from Auth users |
@@ -520,14 +615,17 @@ does not appear in their public URLs.
 
 | Path | Purpose |
 | --- | --- |
+| [`public/brand/logo.png`](public/brand/logo.png) | Optimized transparent mascot used by the application header and login screen |
+| [`public/icons/`](public/icons/) | Padded 192/512 px install icons plus a maskable safe-zone variant |
 | [`public/sw.js`](public/sw.js) | Service worker for Web Push display/click handling, static caching, cache cleanup, and offline navigation fallback |
 
 ## Database model
 
 ### `perfiles`
 
-Extends `auth.users` with a display name and avatar URL. The primary key is the
-Auth user UUID. A trigger creates the row automatically after registration.
+Extends `auth.users` with a display name, avatar URL, appearance choices, and
+Spanish/English locale. The primary key is the Auth user UUID. A trigger creates
+the row automatically after registration.
 
 ### `tablas`
 
@@ -538,9 +636,9 @@ state. It can also contain a short optional description.
 
 ### `grupos`
 
-Stores each private group's name, owner, current unique invite code, and
-timestamps. Existing data is migrated into an initial group owned by the table
-creator.
+Stores each private group's one-to-three-symbol mark, name, owner, current unique
+invite code, and timestamps. Existing data is migrated into an initial group
+owned by the table creator.
 
 ### `grupo_miembros`
 
@@ -625,6 +723,22 @@ five days with Cron-Job.org or another monitor. Send the secret in the
    is enabled.
 7. Configure and deploy Web Push as described above if notifications must arrive
    after browsers or installed webapps close.
+8. Replace every sample legal identity/contact value with accurate production
+   details and review the disclosure against the service's real hosting,
+   retention, analytics, age policy, and jurisdiction before publishing.
 
 Use separate Supabase projects for Preview and Production when strict data
 isolation is required.
+
+
+
+---
+---
+---
+### TODO
+
+- Order registries by win in wta
+
+- better identity in ux/ui
+
+- release!

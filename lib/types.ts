@@ -12,18 +12,21 @@ export type Profile = {
   avatar_url: string | null;
   theme_preference: ThemePreference;
   accent_color: AccentColor;
+  locale: AppLocale;
   created_at: string;
   updated_at: string;
 };
 
 export type ThemePreference = "light" | "dark" | "system";
 export type AccentColor = "emerald" | "blue" | "violet" | "orange" | "rose";
+export type AppLocale = "es" | "en";
 
 export type GroupRole = "owner" | "member";
 
 export type Group = {
   id: string;
   name: string;
+  mark: string;
   owner_id: string;
   invite_code: string;
   created_at: string;
@@ -75,6 +78,13 @@ export type LeaderboardEntry = {
   avatar_url: string | null;
   points: number;
   tables_count: number;
+  entries_count: number;
+  wins_count: number;
+  average_points: number;
+  best_score: number;
+  closed_points: number;
+  provisional_points: number;
+  last_activity_at: string | null;
 };
 
 export type NotificationKind =
@@ -134,6 +144,7 @@ export type Database = {
           avatar_url?: string | null;
           theme_preference?: ThemePreference;
           accent_color?: AccentColor;
+          locale?: AppLocale;
           created_at?: string;
           updated_at?: string;
         };
@@ -142,6 +153,7 @@ export type Database = {
           avatar_url?: string | null;
           theme_preference?: ThemePreference;
           accent_color?: AccentColor;
+          locale?: AppLocale;
           updated_at?: string;
         };
         Relationships: [];
@@ -151,6 +163,7 @@ export type Database = {
         Insert: {
           id?: string;
           name: string;
+          mark: string;
           owner_id: string;
           invite_code?: string;
           created_at?: string;
@@ -158,6 +171,7 @@ export type Database = {
         };
         Update: {
           name?: string;
+          mark?: string;
           invite_code?: string;
           updated_at?: string;
         };
@@ -347,7 +361,7 @@ export type Database = {
         Returns: undefined;
       };
       create_group: {
-        Args: { p_name: string };
+        Args: { p_name: string; p_mark: string };
         Returns: string;
       };
       join_group_by_code: {
@@ -374,6 +388,7 @@ export type Database = {
           p_group_id: string;
           p_period?: string;
           p_table_id?: string | null;
+          p_anchor_date?: string | null;
         };
         Returns: LeaderboardEntry[];
       };

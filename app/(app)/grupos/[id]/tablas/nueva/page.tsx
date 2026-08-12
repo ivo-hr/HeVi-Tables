@@ -6,17 +6,20 @@ import { notFound } from "next/navigation";
 import { ConfigurationNeeded } from "@/components/configuration-needed";
 import { CreateTableForm } from "@/components/create-table-form";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { getServerTranslator } from "@/lib/i18n-server";
 import { requireUser } from "@/lib/supabase/server";
 
 type NewTablePageProps = {
   params: Promise<{ id: string }>;
 };
 
-export const metadata: Metadata = {
-  title: "Nueva tabla"
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getServerTranslator();
+  return { title: t("Nueva tabla", "New table") };
+}
 
 export default async function NewTablePage({ params }: NewTablePageProps) {
+  const { t } = await getServerTranslator();
   if (!isSupabaseConfigured()) {
     return <ConfigurationNeeded />;
   }
@@ -37,17 +40,19 @@ export default async function NewTablePage({ params }: NewTablePageProps) {
     <div className="narrow-page create-page">
       <Link href={`/grupos/${group.id}#tablas`} className="back-link">
         <ChevronLeft size={17} />
-        Volver a {group.name}
+        {t("Volver a", "Back to")} {group.name}
       </Link>
       <header className="page-heading">
         <span className="eyebrow">
           <Palette size={14} />
-          Nueva tabla · {group.name}
+          {t("Nueva tabla", "New table")} · {group.name}
         </span>
-        <h1>Empieza por el lienzo.</h1>
+        <h1>{t("Empieza por el lienzo.", "Start with the canvas.")}</h1>
         <p>
-          Esta tabla será visible para el grupo. Después podrás elegir como
-          participantes únicamente a sus miembros.
+          {t(
+            "Esta tabla será visible para el grupo. Después podrás elegir como participantes únicamente a sus miembros.",
+            "This table will be visible to the group. You will then be able to choose only its members as participants."
+          )}
         </p>
       </header>
       <CreateTableForm groupId={group.id} />
